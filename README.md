@@ -144,6 +144,20 @@ CHARGE_WEBHOOK_TOKEN=
 
 > **First start:** Triplog has no users on first launch — open `http://your-host:3004/setup` and the wizard will create the admin account (username, password, optional 2FA). No default credentials are shipped.
 
+### ⚠️ Generating tokens, keys and secrets
+
+Use a cryptographically secure random number generator. **Never** ask an LLM (ChatGPT, Claude, Copilot, …) to "give me a random 32-byte key" — LLM output is probability-distributed, not random. The same prompt produces a small, predictable distribution of values that an attacker can enumerate offline. The convenience is not worth the silent loss of entropy.
+
+Use these instead:
+
+```bash
+openssl rand -hex 32                                  # AES-256 key, SECRET_KEY
+openssl rand -base64 32                               # API/webhook tokens
+python3 -c "import secrets; print(secrets.token_hex(32))"
+```
+
+This applies to `INFLUX_TOKEN`, `SECRET_KEY`, `MQTT_AES_KEY` and `CHARGE_WEBHOOK_TOKEN`.
+
 - For private image repos: add a ghcr.io registry under **Registries** with a GitHub PAT (`read:packages`).
 - **Deploy the stack.**
 
