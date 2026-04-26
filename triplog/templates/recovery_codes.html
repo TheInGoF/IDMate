@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="{{ current_lang|lower }}">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'><rect width='128' height='128' rx='28' fill='%230E1B2C'/><circle cx='38' cy='34' r='6' fill='%231DE9B6'/><rect x='32' y='46' width='12' height='56' rx='3' fill='%23E8EEF7'/><rect x='56' y='34' width='44' height='68' rx='10' fill='none' stroke='%23E8EEF7' stroke-width='6'/><rect x='72' y='26' width='12' height='10' rx='2' fill='%23E8EEF7'/><rect x='64' y='58' width='28' height='36' rx='4' fill='%231DE9B6'/><path d='M80 62 l-10 16 h8 l-4 12 14 -18 h-8 z' fill='%230E1B2C'/></svg>">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0d1117">
+  <title>ID·Mate — {{ t.recovery_title }}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d1117;color:#e6edf3;display:flex;flex-direction:column;justify-content:center;align-items:center;min-height:100vh;padding:1rem}
+    .card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:2rem;width:380px;max-width:100%}
+    h1{font-size:1.4rem;color:#58a6ff;text-align:center;margin-bottom:0.5rem}
+    .subtitle{text-align:center;font-size:0.85rem;color:#8b949e;margin-bottom:1.5rem}
+    .warn{background:#d299221a;border:1px solid #d29922;color:#d29922;border-radius:6px;padding:0.6rem;font-size:0.8rem;margin-bottom:1rem}
+    .codes{display:grid;grid-template-columns:1fr 1fr;gap:0.4rem;margin-bottom:1.5rem}
+    .code{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:0.4rem 0.6rem;font-family:'SF Mono',SFMono-Regular,Consolas,monospace;font-size:1rem;text-align:center;letter-spacing:0.15em;color:#e6edf3;user-select:all}
+    button{width:100%;padding:0.6rem;border-radius:6px;border:none;background:#238636;color:#fff;font-size:0.9rem;font-weight:600;cursor:pointer;margin-top:0.5rem}
+    button:hover{background:#2ea043}
+    .copy-btn{background:#21262d;border:1px solid #30363d;color:#8b949e;margin-top:0}
+    .copy-btn:hover{color:#e6edf3;border-color:#58a6ff}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>{{ t.recovery_title }}</h1>
+    <div class="subtitle">{{ t.recovery_subtitle }}</div>
+    <div class="warn">{{ t.recovery_warning }}</div>
+    <div class="codes" id="codeGrid">
+      {% for code in codes %}
+      <div class="code">{{ code }}</div>
+      {% endfor %}
+    </div>
+    <button class="copy-btn" onclick="copyAll()">{{ t.recovery_copy }}</button>
+    <a href="/"><button type="button">{{ t.recovery_continue }}</button></a>
+  </div>
+<footer style="text-align:center;padding:1.5rem 0 0.8rem;font-size:0.7rem;color:#484f58"><a href="https://github.com/TheInGoF/IDMate-dev" target="_blank" style="color:#484f58;text-decoration:none">&copy; 2025-2026 ID·Mate &middot; AGPL v3 &middot; v{{ version }}</a></footer>
+<script>
+function copyAll() {
+  const codes = [...document.querySelectorAll('.code')].map(c => c.textContent.trim()).join('\n');
+  navigator.clipboard.writeText(codes);
+}
+</script>
+</body>
+</html>

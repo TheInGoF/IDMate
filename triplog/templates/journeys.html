@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="{{ current_lang|lower }}">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'><rect width='128' height='128' rx='28' fill='%230E1B2C'/><circle cx='38' cy='34' r='6' fill='%231DE9B6'/><rect x='32' y='46' width='12' height='56' rx='3' fill='%23E8EEF7'/><rect x='56' y='34' width='44' height='68' rx='10' fill='none' stroke='%23E8EEF7' stroke-width='6'/><rect x='72' y='26' width='12' height='10' rx='2' fill='%23E8EEF7'/><rect x='64' y='58' width='28' height='36' rx='4' fill='%231DE9B6'/><path d='M80 62 l-10 16 h8 l-4 12 14 -18 h-8 z' fill='%230E1B2C'/></svg>">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0d1117">
+  <title>ID·Mate — {{ t.journeys_title }}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d1117;color:#e6edf3;overflow-x:hidden}
+
+    .hdr{display:flex;align-items:center;padding:0.5rem 1rem;border-bottom:1px solid #21262d;height:45px;max-width:1200px;margin:0 auto;position:sticky;top:0;z-index:1000;background:#0d1117}
+    .hdr h1{font-size:1rem;font-weight:600;flex:1;margin:0}
+    
+    /* Vehicle Picker */
+    .veh-picker{position:relative;display:flex;align-items:center;gap:0.3rem;padding:0.2rem 0.5rem;border-radius:6px;cursor:pointer;color:#8b949e;font-size:0.8rem;user-select:none;border:1px solid transparent;transition:border-color .15s,background .15s}
+    .veh-picker:hover{background:#161b22;border-color:#30363d;color:#e6edf3}
+    .veh-chevron{opacity:0.5;transition:transform .2s;flex-shrink:0}
+    .veh-picker.open .veh-chevron{transform:rotate(180deg)}
+    .veh-dropdown{display:none;position:absolute;top:calc(100% + 4px);right:0;min-width:150px;background:#161b22;border:1px solid #30363d;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:500;overflow:hidden}
+    .veh-picker.open .veh-dropdown{display:block}
+    .veh-opt{padding:0.5rem 0.8rem;font-size:0.8rem;color:#8b949e;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:0.5rem}
+    .veh-opt:hover{background:#21262d;color:#e6edf3}
+    .veh-opt.active{color:#58a6ff}
+    .veh-opt::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:transparent;flex-shrink:0}
+    .veh-opt.active::before{background:#58a6ff}
+
+    .burger{background:none;border:none;color:#8b949e;font-size:1.4rem;cursor:pointer;padding:0.2rem 0.4rem;line-height:1}
+    .burger:hover{color:#e6edf3}
+    .menu-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000}
+    .menu-overlay.open{display:block}
+    .menu{position:fixed;top:0;right:-260px;width:260px;height:100%;background:#161b22;border-left:1px solid #30363d;z-index:10001;transition:right .25s ease;padding:1rem 0}
+    .menu.open{right:0}
+    .menu a{display:block;padding:0.8rem 1.2rem;color:#e6edf3;text-decoration:none;font-size:0.95rem;border-bottom:1px solid #21262d}
+    .menu a:hover{background:#21262d}
+    .menu .close-btn{text-align:right;padding:0.4rem 1rem;color:#8b949e;cursor:pointer;font-size:1.2rem}
+
+    .content{max-width:1200px;margin:0 auto;padding:0.8rem}
+    .card{background:#161b22;border:1px solid #21262d;border-radius:8px;padding:1rem;overflow:hidden}
+    .card h2{font-size:0.9rem;color:#58a6ff;margin-bottom:0.8rem;font-weight:600}
+
+    .btn{padding:0.4rem 0.8rem;border-radius:6px;border:1px solid #238636;background:#238636;color:#fff;font-size:0.8rem;cursor:pointer}
+    .btn:hover{background:#2ea043}
+    .btn-sm{padding:0.25rem 0.5rem;font-size:0.75rem}
+
+    table{width:100%;border-collapse:collapse;font-size:0.85rem;table-layout:fixed}
+    th{text-align:left;color:#8b949e;font-weight:500;padding:0.5rem 0.6rem;border-bottom:1px solid #21262d}
+    td{padding:0.5rem 0.6rem;border-bottom:1px solid #21262d}
+    tr:hover td{background:#161b22}
+    a{color:#58a6ff;text-decoration:none}
+    a:hover{text-decoration:underline}
+
+    .empty{text-align:center;color:#484f58;padding:2rem;font-size:0.9rem}
+
+    @media(max-width:600px){
+      table{font-size:0.75rem}
+      th,td{padding:0.35rem 0.3rem}
+      td{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    }
+
+    /* Modal */
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:none}
+    .modal-overlay.open{display:flex;align-items:center;justify-content:center}
+    .modal{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:1.2rem;width:480px;max-width:95vw;max-height:85vh;overflow-y:auto}
+    .modal h3{font-size:0.95rem;margin-bottom:0.8rem;color:#58a6ff}
+    .form-group{margin-bottom:0.7rem}
+    .form-group label{display:block;font-size:0.8rem;color:#8b949e;margin-bottom:0.2rem}
+    .form-group input,.form-group textarea{width:100%;background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:4px;padding:0.35rem 0.5rem;font-size:0.85rem}
+    .form-group input:focus,.form-group textarea:focus{border-color:#58a6ff;outline:none}
+    .form-group textarea{min-height:60px;resize:vertical}
+    .form-actions{display:flex;gap:0.5rem;justify-content:flex-end;margin-top:0.8rem}
+    .btn-cancel{background:#21262d;border:1px solid #30363d;color:#e6edf3;padding:0.4rem 0.8rem;border-radius:6px;font-size:0.8rem;cursor:pointer}
+    .trip-list{max-height:220px;overflow-y:auto;border:1px solid #21262d;border-radius:4px;margin-top:0.3rem}
+    .trip-item{display:flex;align-items:center;gap:0.4rem;padding:0.2rem 0.5rem;border-bottom:1px solid #161b22;font-size:0.78rem;line-height:1.2}
+    .trip-item:last-child{border-bottom:none}
+    .trip-item input[type=checkbox]{accent-color:#58a6ff;flex-shrink:0}
+    .trip-item .trip-date{color:#8b949e;min-width:40px;font-size:0.72rem}
+    .trip-item .trip-route{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .trip-item .trip-km{color:#8b949e;min-width:45px;text-align:right;font-size:0.72rem}
+    .loading-trips{text-align:center;color:#484f58;padding:0.5rem;font-size:0.8rem}
+  </style>
+</head>
+<body>
+  <div class="menu-overlay" id="menuOverlay" onclick="toggleMenu()"></div>
+  <div class="menu" id="menu">
+    <div class="close-btn" onclick="toggleMenu()">&times;</div>
+    <a href="/">{{ t.nav_dashboard }}</a>
+    <a href="/trips">{{ t.nav_trips }}</a>
+    <a href="/journeys">{{ t.nav_journeys }}</a>
+    <a href="/analysis">{{ t.nav_analysis }}</a>
+    <a href="/charges">{{ t.nav_charges }}</a>
+    <a href="/admin">{{ t.nav_admin }}</a>
+    <a href="/logout" style="color:#da3633;margin-top:1rem">{{ t.nav_logout }}</a>
+  </div>
+
+  <div class="hdr">
+    <h1><a href="/" style="color:#58a6ff;text-shadow:0 0 8px rgba(88,166,255,0.4);text-decoration:none">ID·Mate</a> — {{ t.journeys_title }}</h1>
+    {% if active_vehicle %}
+    <div class="veh-picker" id="vehPicker" onclick="toggleVehPicker(event)">
+      <span id="vehPickerLabel">{{ vehicle_name }}</span>
+      <svg class="veh-chevron" viewBox="0 0 10 6" width="10" height="6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div class="veh-dropdown" id="vehDropdown"></div>
+    </div>
+    {% endif %}
+    <button class="burger" onclick="toggleMenu()">&#9776;</button>
+  </div>
+
+  <div class="content">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.8rem">
+      <span style="font-size:0.85rem;color:#8b949e">{{ journeys|length }} Journey{{ 's' if journeys|length != 1 else '' }}</span>
+      <button class="btn" onclick="openCreate()">{{ t.journeys_new }}</button>
+    </div>
+
+    <div class="card">
+      {% if journeys %}
+      <table>
+        <thead>
+          <tr>
+            <th>{{ t.common_title }}</th>
+            <th>{{ t.common_from }}</th>
+            <th>{{ t.common_to }}</th>
+            <th>{{ t.journey_detail_trips }}</th>
+            <th>{{ t.journeys_col_total_km }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for j in journeys %}
+          <tr>
+            <td><a href="/journeys/{{ j.id }}">{{ j.title }}</a></td>
+            <td>{{ j.date_from }}</td>
+            <td>{{ j.date_to }}</td>
+            <td>{{ j.trip_count }}</td>
+            <td>{{ '%.1f' % j.total_km if j.total_km else '--' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty">{{ t.journeys_empty }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Create Modal -->
+  <div class="modal-overlay" id="createModal">
+    <div class="modal">
+      <h3>{{ t.journeys_new_title }}</h3>
+      <div class="form-group">
+        <label>{{ t.common_title }}</label>
+        <input id="fTitle" placeholder="{{ t.journeys_placeholder_title }}">
+      </div>
+      <div class="form-group">
+        <label>{{ t.common_from }}</label>
+        <input type="datetime-local" id="fFrom" onchange="loadTrips()">
+      </div>
+      <div class="form-group">
+        <label>{{ t.common_to }}</label>
+        <input type="datetime-local" id="fTo" onchange="loadTrips()">
+      </div>
+      <div class="form-group">
+        <label>{{ t.common_notes }}</label>
+        <textarea id="fNotes" placeholder="{{ t.common_optional }}"></textarea>
+      </div>
+      <div class="form-group">
+        <label>{{ t.journeys_link_trips }}</label>
+        <div class="trip-list" id="tripList">
+          <div class="loading-trips">{{ t.journeys_select_range }}</div>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn-cancel" onclick="closeCreate()">{{ t.common_cancel }}</button>
+        <button class="btn" onclick="saveJourney()">{{ t.common_create }}</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function toggleMenu() {
+      document.getElementById('menu').classList.toggle('open');
+      document.getElementById('menuOverlay').classList.toggle('open');
+    }
+    function openCreate() { document.getElementById('createModal').classList.add('open'); }
+    function closeCreate() { document.getElementById('createModal').classList.remove('open'); }
+
+    async function loadTrips() {
+      const from = document.getElementById('fFrom').value;
+      const to = document.getElementById('fTo').value;
+      const el = document.getElementById('tripList');
+      if (!from || !to) { el.innerHTML = '<div class="loading-trips">{{ t.journeys_select_range }}</div>'; return; }
+      el.innerHTML = '<div class="loading-trips">{{ t.journeys_loading_trips }}</div>';
+      const dFrom = from.slice(0, 10);
+      const dTo = to.slice(0, 10);
+      const res = await fetch(`/api/journeys/available-trips?from=${dFrom}&to=${dTo}`);
+      const trips = await res.json();
+      if (!trips.length) { el.innerHTML = '<div class="loading-trips">{{ t.journeys_no_trips_in_range }}</div>'; return; }
+      el.innerHTML = trips.map(t => `
+        <label class="trip-item">
+          <input type="checkbox" value="${t.id}" checked>
+          <span class="trip-date">${t.start_time.slice(5,10)}</span>
+          <span class="trip-route">${t.start_address || '?'} → ${t.end_address || '?'}</span>
+          <span class="trip-km">${t.distance_km ? t.distance_km.toFixed(0) + 'km' : '--'}</span>
+        </label>
+      `).join('');
+    }
+
+    async function saveJourney() {
+      const title = document.getElementById('fTitle').value.trim();
+      const date_from = document.getElementById('fFrom').value;
+      const date_to = document.getElementById('fTo').value;
+      const notes = document.getElementById('fNotes').value.trim();
+      if (!title || !date_from || !date_to) { alert('{{ t.journeys_required_fields }}'); return; }
+      const checks = document.querySelectorAll('#tripList input[type=checkbox]:checked');
+      const trip_ids = Array.from(checks).map(c => parseInt(c.value));
+      const res = await fetch('/api/journeys', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ title, date_from, date_to, notes, trip_ids })
+      });
+      const data = await res.json();
+      if (data.ok) window.location.href = `/journeys/${data.id}`;
+      else alert(data.error || '{{ t.common_error }}');
+    }
+  </script>
+<footer style="text-align:center;padding:1.5rem 0 0.8rem;font-size:0.7rem;color:#484f58"><a href="https://github.com/TheInGoF/IDMate-dev" target="_blank" style="color:#484f58;text-decoration:none">&copy; 2025–2026 ID·Mate &middot; AGPL v3 &middot; v{{ version }}</a></footer>
+
+  <script>
+  (function(){
+    const ACTIVE_ID = {{ (active_vehicle.id if active_vehicle else 'null') | tojson }};
+    async function initVehPicker() {
+      const picker = document.getElementById('vehPicker');
+      if (!picker) return;
+      const res = await fetch('/api/vehicles');
+      const vehicles = await res.json();
+      if (vehicles.length <= 1) { picker.style.cursor = 'default'; return; }
+      document.getElementById('vehDropdown').innerHTML = vehicles.map(v =>
+        `<div class="veh-opt ${v.id === ACTIVE_ID ? 'active' : ''}" onclick="switchVehicle(${v.id},event)">${v.name || v.plate}</div>`
+      ).join('');
+    }
+    window.toggleVehPicker = function(e) {
+      e.stopPropagation();
+      document.getElementById('vehPicker').classList.toggle('open');
+    };
+    window.switchVehicle = async function(id, e) {
+      e.stopPropagation();
+      await fetch('/api/user/active-vehicle', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({vehicle_id:id})});
+      location.reload();
+    };
+    document.addEventListener('click', () => {
+      const p = document.getElementById('vehPicker');
+      if (p) p.classList.remove('open');
+    });
+    initVehPicker();
+  })();
+  </script>
+</body>
+</html>

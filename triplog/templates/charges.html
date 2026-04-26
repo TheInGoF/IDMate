@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="{{ current_lang|lower }}">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'><rect width='128' height='128' rx='28' fill='%230E1B2C'/><circle cx='38' cy='34' r='6' fill='%231DE9B6'/><rect x='32' y='46' width='12' height='56' rx='3' fill='%23E8EEF7'/><rect x='56' y='34' width='44' height='68' rx='10' fill='none' stroke='%23E8EEF7' stroke-width='6'/><rect x='72' y='26' width='12' height='10' rx='2' fill='%23E8EEF7'/><rect x='64' y='58' width='28' height='36' rx='4' fill='%231DE9B6'/><path d='M80 62 l-10 16 h8 l-4 12 14 -18 h-8 z' fill='%230E1B2C'/></svg>">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0d1117">
+  <title>ID·Mate — {{ t.charges_title }}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d1117; color: #e6edf3; overflow-x:hidden; }
+
+    .hdr{display:flex;align-items:center;padding:0.5rem 1rem;border-bottom:1px solid #21262d;height:45px;max-width:1200px;margin:0 auto;position:sticky;top:0;z-index:1000;background:#0d1117}
+    .hdr h1{font-size:1rem;font-weight:600;flex:1;margin:0}
+    
+    /* Vehicle Picker */
+    .veh-picker{position:relative;display:flex;align-items:center;gap:0.3rem;padding:0.2rem 0.5rem;border-radius:6px;cursor:pointer;color:#8b949e;font-size:0.8rem;user-select:none;border:1px solid transparent;transition:border-color .15s,background .15s}
+    .veh-picker:hover{background:#161b22;border-color:#30363d;color:#e6edf3}
+    .veh-chevron{opacity:0.5;transition:transform .2s;flex-shrink:0}
+    .veh-picker.open .veh-chevron{transform:rotate(180deg)}
+    .veh-dropdown{display:none;position:absolute;top:calc(100% + 4px);right:0;min-width:150px;background:#161b22;border:1px solid #30363d;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:500;overflow:hidden}
+    .veh-picker.open .veh-dropdown{display:block}
+    .veh-opt{padding:0.5rem 0.8rem;font-size:0.8rem;color:#8b949e;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:0.5rem}
+    .veh-opt:hover{background:#21262d;color:#e6edf3}
+    .veh-opt.active{color:#58a6ff}
+    .veh-opt::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:transparent;flex-shrink:0}
+    .veh-opt.active::before{background:#58a6ff}
+
+    .burger{background:none;border:none;color:#8b949e;font-size:1.4rem;cursor:pointer;padding:0.2rem 0.4rem;line-height:1}
+    .burger:hover{color:#e6edf3}
+    .menu-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000}
+    .menu-overlay.open{display:block}
+    .menu{position:fixed;top:0;right:-260px;width:260px;height:100%;background:#161b22;border-left:1px solid #30363d;z-index:10001;transition:right .25s ease;padding:1rem 0}
+    .menu.open{right:0}
+    .menu a{display:block;padding:0.8rem 1.2rem;color:#e6edf3;text-decoration:none;font-size:0.95rem;border-bottom:1px solid #21262d}
+    .menu a:hover{background:#21262d}
+    .menu .close-btn{text-align:right;padding:0.4rem 1rem;color:#8b949e;cursor:pointer;font-size:1.2rem}
+
+    .content{max-width:1200px;margin:0 auto;padding:0.8rem}
+
+    .toolbar{display:flex;gap:0.5rem;margin-bottom:0.8rem;flex-wrap:wrap;align-items:center}
+    .toolbar select,.toolbar button,.toolbar input[type="date"]{
+      padding:0.35rem 0.7rem;border-radius:6px;border:1px solid #30363d;
+      background:#161b22;color:#e6edf3;font-size:0.8rem;cursor:pointer}
+    .toolbar input[type="date"]{width:130px}
+    .toolbar input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(0.7)}
+    .toolbar button:hover{background:#21262d}
+    .toolbar .settings-btn{border-color:#8b949e;color:#8b949e}
+    .toolbar .settings-btn:hover,.toolbar .settings-btn.active{border-color:#58a6ff;color:#58a6ff}
+    .toolbar .rebuild-btn{border-color:#d29922;color:#d29922}
+    .toolbar .rebuild-btn:hover{background:#d29922;color:#0d1117}
+    .stats{font-size:0.75rem;color:#8b949e;margin-left:auto}
+
+    /* Settings panel */
+    .settings-panel{display:none;margin-bottom:1rem;padding:0.8rem;border:1px solid #30363d;border-radius:8px;background:#161b22}
+    .settings-panel.open{display:block}
+    .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+    @media(max-width:768px){.settings-grid{grid-template-columns:1fr}}
+    .settings-panel h3{font-size:0.85rem;color:#8b949e;margin-bottom:0.5rem;border-bottom:1px solid #21262d;padding-bottom:0.3rem}
+    .mini-table{width:100%;font-size:0.75rem;border-collapse:collapse;margin-bottom:0.5rem}
+    .mini-table th{text-align:left;padding:0.3rem;color:#8b949e;border-bottom:1px solid #21262d;font-weight:500}
+    .mini-table td{padding:0.3rem;border-bottom:1px solid #21262d}
+    .mini-table input{background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:4px;padding:0.2rem 0.3rem;font-size:0.75rem;width:100%}
+    .mini-table input:focus{border-color:#58a6ff;outline:none}
+    .mini-btn{padding:0.15rem 0.4rem;border-radius:4px;border:1px solid #30363d;background:transparent;color:#8b949e;font-size:0.7rem;cursor:pointer}
+    .mini-btn:hover{color:#e6edf3;border-color:#58a6ff}
+    .mini-btn.del{color:#da3633;border-color:#da3633}
+    .mini-btn.del:hover{background:#da3633;color:#fff}
+    .add-row{display:flex;gap:0.3rem;margin-top:0.3rem}
+    .add-row input{background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:4px;padding:0.2rem 0.3rem;font-size:0.75rem;flex:1}
+    .add-row input:focus{border-color:#58a6ff;outline:none}
+
+    /* Sessions table */
+    table{width:100%;border-collapse:collapse;font-size:0.8rem}
+    th{text-align:left;padding:0.4rem;border-bottom:2px solid #30363d;color:#8b949e;font-weight:500;position:sticky;top:0;background:#0d1117;z-index:2;white-space:nowrap}
+    td{padding:0.4rem;border-bottom:1px solid #21262d;vertical-align:middle}
+    tr:hover{background:#161b22}
+    tr[data-id]{cursor:pointer}
+    .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+    .pos{color:#3fb950}
+    .neg{color:#da3633}
+    tr.total-row{border-top:2px solid #30363d;font-weight:600;background:#161b22}
+    tr.total-row:hover{background:#161b22}
+
+    .hint{font-size:0.75rem;color:#8b949e;margin-top:0.8rem;padding:0.5rem 0.6rem;border:1px solid #30363d;border-radius:6px;background:#161b22}
+    .hint code{background:#21262d;padding:0.1rem 0.3rem;border-radius:3px;font-size:0.7rem}
+
+    /* Operator icons: SVG only, no colored fallback button */
+    .op-icon{display:inline-block;width:18px;height:18px;border-radius:3px;vertical-align:middle;margin-right:3px;background-size:contain;background-repeat:no-repeat;background-position:center}
+
+    /* Batch bar */
+    .batch-bar{display:none;position:fixed;bottom:0;left:0;right:0;background:#161b22;border-top:1px solid #30363d;padding:0.5rem 0.8rem;padding-bottom:calc(0.5rem + env(safe-area-inset-bottom,0px));gap:0.5rem;align-items:center;z-index:50;flex-wrap:wrap}
+    .batch-bar.visible{display:flex}
+    .batch-bar span{font-size:0.8rem;color:#8b949e}
+    .batch-bar input{padding:0.3rem 0.5rem;border-radius:6px;border:1px solid #30363d;background:#21262d;color:#e6edf3;font-size:0.8rem;width:180px}
+    .batch-bar button{padding:0.3rem 0.7rem;border-radius:6px;border:1px solid #238636;background:#238636;color:#fff;font-size:0.8rem;font-weight:500;cursor:pointer}
+    .batch-bar button:hover{background:#2ea043}
+    .batch-bar button.cancel{background:transparent;border-color:#30363d;color:#8b949e}
+    .batch-bar button.cancel:hover{background:#21262d;color:#e6edf3}
+
+    /* Checkbox column */
+    .cb{width:14px;height:14px;cursor:pointer;accent-color:#58a6ff}
+  </style>
+</head>
+<body>
+  <div class="menu-overlay" id="menuOverlay" onclick="toggleMenu()"></div>
+  <div class="menu" id="menu">
+    <div class="close-btn" onclick="toggleMenu()">&times;</div>
+    <a href="/">{{ t.nav_dashboard }}</a>
+    <a href="/trips">{{ t.nav_trips }}</a>
+    <a href="/journeys">{{ t.nav_journeys }}</a>
+    <a href="/analysis">{{ t.nav_analysis }}</a>
+    <a href="/charges">{{ t.nav_charges }}</a>
+    <a href="/admin">{{ t.nav_admin }}</a>
+    <a href="/logout" style="color:#da3633;margin-top:1rem">{{ t.nav_logout }}</a>
+  </div>
+
+  <div class="hdr">
+    <h1><a href="/" style="color:#58a6ff;text-shadow:0 0 8px rgba(88,166,255,0.4);text-decoration:none">ID·Mate</a> — {{ t.charges_title }}</h1>
+    {% if active_vehicle %}
+    <div class="veh-picker" id="vehPicker" onclick="toggleVehPicker(event)">
+      <span id="vehPickerLabel">{{ vehicle_name }}</span>
+      <svg class="veh-chevron" viewBox="0 0 10 6" width="10" height="6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div class="veh-dropdown" id="vehDropdown"></div>
+    </div>
+    {% endif %}
+    <button class="burger" onclick="toggleMenu()">&#9776;</button>
+  </div>
+
+  <div class="content">
+    <div class="toolbar">
+      <label><input type="checkbox" id="selectAll" class="cb"> {{ t.common_all }}</label>
+      <input type="date" id="dateFrom" value="{{ date_from or '' }}" title="{{ t.common_from }}">
+      <input type="date" id="dateTo" value="{{ date_to or '' }}" title="{{ t.common_to }}">
+      <button onclick="applyFilter()">{{ t.common_show }}</button>
+      <label style="font-size:0.75rem;color:#8b949e;display:flex;align-items:center;gap:0.2rem;cursor:pointer"><input type="checkbox" id="showExt" checked onchange="toggleExt()"> Ext.</label>
+      <select id="quickSelect" onchange="quickSelect(this.value)" style="font-size:0.8rem">
+        <option value="" disabled selected>{{ t.common_quick_select }}</option>
+        <option value="this_month">{{ t.common_this_month }}</option>
+        <option value="last_month">{{ t.common_last_month }}</option>
+        <option value="30">{{ t.common_30d }}</option>
+        <option value="90">{{ t.common_90d }}</option>
+        <option value="365">{{ t.common_1y }}</option>
+        <option value="all">{{ t.common_all }}</option>
+      </select>
+      <button class="settings-btn" onclick="toggleImport()" style="border-color:#3fb950;color:#3fb950">{{ t.charges_external_charge }}</button>
+      <button class="settings-btn" onclick="openPrint()">{{ t.charges_print_view }}</button>
+      <span class="stats" id="stats"></span>
+    </div>
+
+    <!-- External charge -->
+    <div class="settings-panel" id="importPanel">
+      <div class="settings-grid">
+        <div>
+          <h3>{{ t.charges_record_external }}</h3>
+          <div style="font-size:0.75rem;color:#484f58;margin-bottom:0.4rem">{{ t.charges_record_hint }} <b>{{ vehicle_name }}</b></div>
+          <div class="add-row" style="flex-wrap:wrap;gap:0.4rem">
+            <input id="extTimestampStart" type="datetime-local" title="{{ t.common_start_time }}" style="background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:4px;padding:0.2rem 0.3rem;font-size:0.75rem;flex:1;min-width:140px">
+            <input id="extTimestampEnd" type="datetime-local" title="{{ t.common_end_time }}" style="background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:4px;padding:0.2rem 0.3rem;font-size:0.75rem;flex:1;min-width:140px">
+            <input id="extKwh" type="number" step="0.01" placeholder="kWh" style="background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:4px;padding:0.2rem 0.3rem;font-size:0.75rem;width:70px">
+            <input id="extCost" type="number" step="0.01" placeholder="{{ t.common_cost_eur }}" style="background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:4px;padding:0.2rem 0.3rem;font-size:0.75rem;width:90px">
+            <input id="extOdo" type="number" step="1" placeholder="{{ t.common_odometer }}" style="background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:4px;padding:0.2rem 0.3rem;font-size:0.75rem;width:90px">
+            <input id="extNote" placeholder="{{ t.common_note }}" style="background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:4px;padding:0.2rem 0.3rem;font-size:0.75rem;flex:2;min-width:120px">
+          </div>
+          <div style="margin-top:0.4rem">
+            <button class="mini-btn" style="padding:0.3rem 0.8rem" onclick="addExternal()">{{ t.common_save }}</button>
+            <span id="extStatus" style="font-size:0.75rem;color:#8b949e;margin-left:0.5rem"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sessions table -->
+    <div style="overflow-x:auto">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:28px"></th>
+          <th class="num">#</th>
+          <th>{{ t.common_date }}</th>
+          <th>{{ t.common_duration }}</th>
+          <th>{{ t.common_vehicle }}</th>
+          <th>{{ t.common_location }}</th>
+          <th class="num">{{ t.common_odometer }}</th>
+          <th class="num">{{ t.common_distance }}</th>
+          <th class="num">kWh</th>
+          <th class="num">SoC</th>
+          <th class="num">&#216; kW</th>
+          <th class="num">{{ t.charges_col_dynamic }}</th>
+          <th class="num">{{ t.charges_col_avg_ct }}</th>
+          <th class="num">{{ t.charges_col_flat }}</th>
+          <th class="num">{{ t.charges_col_diff }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set ns = namespace(sum_kwh=0, sum_tibber=0, sum_pauschale=0, sum_diff=0, sum_dist=0) %}
+        {% for s in sessions %}
+        {% set ns.sum_kwh = ns.sum_kwh + (s.total_kwh or 0) %}
+        {% set ns.sum_tibber = ns.sum_tibber + (s.cost_tibber or 0) %}
+        {% set ns.sum_pauschale = ns.sum_pauschale + (s.cost_pauschale or 0) %}
+        {% set ns.sum_diff = ns.sum_diff + (s.cost_diff or 0) %}
+        {% set ns.sum_dist = ns.sum_dist + (s.distance or 0) %}
+        {% set loc_op = loc_operators.get(s.location_name, {}) %}
+        <tr data-id="{{ s.id }}" {% if s.is_external %}data-ext="1"{% endif %}>
+          <td onclick="event.stopPropagation()"><input type="checkbox" class="cb charge-cb" value="{{ s.id }}" onchange="updateBatchBar()"></td>
+          <td class="num">{{ s.session_number or '--' }}</td>
+          <td style="white-space:nowrap">{{ s.start_time[:10] }}<br><small style="color:#8b949e">{{ s.start_time[11:16] }}–{{ s.end_time[11:16] if s.end_time else '?' }}</small></td>
+          <td style="white-space:nowrap">
+            {% if s.duration_minutes %}
+              {% set h = s.duration_minutes // 60 %}
+              {% set m = s.duration_minutes % 60 %}
+              {{ h }}h {{ '%02d' % m }}min
+            {% else %}--{% endif %}
+          </td>
+          <td>{{ vehicle_names.get(s.vehicle_plate, s.vehicle_plate) }}</td>
+          <td style="white-space:nowrap;max-width:170px" title="{{ s.location_name or '' }}">
+            {%- if loc_op.get('icon_url') -%}
+              <span class="op-icon" style="background-color:{{ loc_op.color }};background-image:url('{{ loc_op.icon_url }}');background-size:contain;background-repeat:no-repeat;background-position:center"></span>
+            {%- endif -%}
+            {{ s.location_name or '--' }}
+          </td>
+          <td class="num">{{ '{:,.0f}'.format(s.odometer) if s.odometer else '--' }}</td>
+          <td class="num">{{ '%.0f' % s.distance if s.distance else '--' }}</td>
+          <td class="num">{{ '%.2f' % s.total_kwh if s.total_kwh else '--' }}</td>
+          <td class="num">{% if s.soc_start is not none or s.soc_end is not none %}{{ '%.0f' % s.soc_start if s.soc_start is not none else '?' }}→{{ '%.0f' % s.soc_end if s.soc_end is not none else '?' }}%{% else %}--{% endif %}</td>
+          <td class="num">{{ '%.1f' % s.avg_kw if s.avg_kw else '--' }}{% if s.avg_kw and s.avg_kw > 22 and loc_op.get('type', 'ac') == 'ac' %} <span title="Ø {{ '%.0f' % s.avg_kw }} kW bei AC-Standort — DC?" style="color:#d29922;cursor:help">&#9888;</span>{% endif %}</td>
+          {% if s.is_external %}
+          <td class="num" colspan="3">{{ '%.2f' % s.cost_total if s.cost_total else '--' }} <small style="color:#8b949e">{{ t.common_total }}</small></td>
+          <td class="num">--</td>
+          {% else %}
+          <td class="num">{{ '%.2f' % s.cost_tibber if s.cost_tibber is not none else '--' }}</td>
+          <td class="num">{{ '%.1f' % (s.cost_tibber / s.total_kwh * 100) if s.cost_tibber and s.total_kwh else '--' }}</td>
+          <td class="num">{{ '%.2f' % s.cost_pauschale if s.cost_pauschale is not none else '--' }}</td>
+          <td class="num {% if s.cost_diff is not none %}{{ 'pos' if s.cost_diff >= 0 else 'neg' }}{% endif %}">
+            {{ '%+.2f' % s.cost_diff if s.cost_diff is not none else '--' }}
+          </td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+      {% if sessions %}
+      <tfoot>
+        <tr class="total-row">
+          <td colspan="7">{{ t.common_sum }} ({{ sessions|length }} {{ t.charges_sessions }})</td>
+          <td class="num">{{ '%.0f' % ns.sum_dist }}</td>
+          <td class="num">{{ '%.2f' % ns.sum_kwh }}</td>
+          <td class="num"></td>
+          <td class="num"></td>
+          <td class="num">{{ '%.2f' % ns.sum_tibber }}</td>
+          <td class="num">{{ '%.1f' % (ns.sum_tibber / ns.sum_kwh * 100) if ns.sum_kwh else '--' }}</td>
+          <td class="num">{{ '%.2f' % ns.sum_pauschale }}</td>
+          <td class="num {{ 'pos' if ns.sum_diff >= 0 else 'neg' }}">{{ '%+.2f' % ns.sum_diff }}</td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+
+    {% if not sessions %}
+    <div class="hint">
+      {{ t.charges_no_sessions }}<br>
+      <code>POST {{ webhook_url }}/api/charge/reading</code>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Batch bar -->
+  <div class="batch-bar" id="batchBar">
+    <span id="batchCount">0 {{ t.common_selected }}</span>
+    <span style="color:#30363d">|</span>
+    <span style="font-size:0.8rem;color:#8b949e">{{ t.charges_station_label }}</span>
+    <select id="batchLoc" style="padding:0.3rem 0.5rem;border-radius:6px;border:1px solid #30363d;background:#21262d;color:#e6edf3;font-size:0.8rem;min-width:180px">
+      <option value="">{{ t.charges_select_station }}</option>
+      {% for loc in all_locations %}
+      <option value="{{ loc.name }}">{{ loc.name }}{% if loc.op_name %} ({{ loc.op_name }}){% endif %}</option>
+      {% endfor %}
+    </select>
+    <button onclick="applyBatch()">{{ t.common_apply }}</button>
+    <button class="cancel" onclick="clearSelection()">{{ t.common_cancel }}</button>
+  </div>
+
+  <script>
+    function toggleMenu() {
+      document.getElementById('menu').classList.toggle('open');
+      document.getElementById('menuOverlay').classList.toggle('open');
+    }
+
+    // ── Filter + Date Range ──
+    function applyFilter() {
+      const from = document.getElementById('dateFrom').value;
+      const to = document.getElementById('dateTo').value;
+      // Always send both params (even empty) so server can reset session filter
+      location.href = `/charges?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+    }
+
+    function toggleExt() {
+      const show = document.getElementById('showExt').checked;
+      document.querySelectorAll('tr[data-ext]').forEach(tr => {
+        tr.style.display = show ? '' : 'none';
+      });
+    }
+
+    function quickSelect(val) {
+      const df = document.getElementById('dateFrom');
+      const dt = document.getElementById('dateTo');
+      if (val === 'all') {
+        df.value = ''; dt.value = '';
+      } else if (val === 'this_month') {
+        const now = new Date();
+        df.value = fmt(new Date(now.getFullYear(), now.getMonth(), 1));
+        dt.value = fmt(now);
+      } else if (val === 'last_month') {
+        const now = new Date();
+        df.value = fmt(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+        dt.value = fmt(new Date(now.getFullYear(), now.getMonth(), 0));
+      } else {
+        const to = new Date();
+        const from = new Date();
+        from.setDate(from.getDate() - parseInt(val));
+        df.value = fmt(from); dt.value = fmt(to);
+      }
+      document.getElementById('quickSelect').selectedIndex = 0;
+      applyFilter();
+    }
+
+    function fmt(d) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+
+    // ── Navigate to detail ──
+    document.addEventListener('click', function(e) {
+      if (e.target.closest('input, select, button, a')) return;
+      const tr = e.target.closest('tr[data-id]');
+      if (!tr) return;
+      window.location.href = '/charges/' + tr.dataset.id;
+    });
+
+    // ── Checkboxes + Batch ──
+    document.getElementById('selectAll').addEventListener('change', function() {
+      document.querySelectorAll('.charge-cb').forEach(cb => cb.checked = this.checked);
+      updateBatchBar();
+    });
+
+    function getSelectedIds() {
+      return [...document.querySelectorAll('.charge-cb:checked')].map(cb => parseInt(cb.value));
+    }
+
+    function updateBatchBar() {
+      const ids = getSelectedIds();
+      const bar = document.getElementById('batchBar');
+      if (ids.length > 0) {
+        bar.classList.add('visible');
+        document.getElementById('batchCount').textContent = ids.length + ' {{ t.common_selected }}';
+      } else {
+        bar.classList.remove('visible');
+      }
+    }
+
+    function clearSelection() {
+      document.querySelectorAll('.charge-cb').forEach(cb => cb.checked = false);
+      document.getElementById('selectAll').checked = false;
+      updateBatchBar();
+    }
+
+    async function applyBatch() {
+      const ids = getSelectedIds();
+      if (!ids.length) return;
+      const loc = document.getElementById('batchLoc').value.trim();
+      if (!loc) return alert('{{ t.charges_enter_location }}');
+      await fetch('/api/charge/sessions/batch-location', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, location_name: loc })
+      });
+      location.reload();
+    }
+
+    // ── Vehicles CRUD ──
+    async function saveVehicle(id, el) {
+      const field = el.dataset.field;
+      await fetch('/api/vehicles/' + id, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [field]: el.value })
+      });
+    }
+
+    async function addVehicle() {
+      const plate = document.getElementById('newPlate').value.trim();
+      if (!plate) return;
+      await fetch('/api/vehicles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          plate,
+          name: document.getElementById('newName').value.trim()
+        })
+      });
+      location.reload();
+    }
+
+    async function deleteVehicle(id) {
+      if (!confirm('{{ t.charges_delete_vehicle }}')) return;
+      await fetch('/api/vehicles/' + id, { method: 'DELETE' });
+      location.reload();
+    }
+
+    // ── Tariffs CRUD ──
+    function toggleImport() {
+      const p = document.getElementById('importPanel');
+      p.classList.toggle('open');
+    }
+
+    async function addExternal() {
+      const status = document.getElementById('extStatus');
+      const kwh = parseFloat(document.getElementById('extKwh').value);
+      const vehicle = {{ (active_vehicle.plate if active_vehicle else '') | tojson }};
+      if (!vehicle) return alert('{{ t.charges_no_vehicle }}');
+      if (!kwh || kwh <= 0) return alert('{{ t.charges_kwh_required }}');
+      const tsStart = document.getElementById('extTimestampStart').value;
+      const tsEnd = document.getElementById('extTimestampEnd').value;
+      if (!tsStart || !tsEnd) return alert('{{ t.charges_times_required }}');
+      try {
+        const resp = await fetch('/api/charge/external', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            vehicle_plate: vehicle, kwh: kwh,
+            timestamp: tsStart.replace('T', ' '), end_time: tsEnd.replace('T', ' '),
+            odometer: document.getElementById('extOdo').value || null,
+            cost_total: document.getElementById('extCost').value || null,
+            note: document.getElementById('extNote').value || null
+          })
+        });
+        const data = await resp.json();
+        if (data.ok) {
+          status.textContent = '{{ t.common_saved }}';
+          status.style.color = '#3fb950';
+          setTimeout(() => location.reload(), 1500);
+        } else {
+          status.textContent = data.error || '{{ t.common_error }}';
+          status.style.color = '#da3633';
+        }
+      } catch(err) {
+        status.textContent = '{{ t.common_error }}: ' + err.message;
+        status.style.color = '#da3633';
+      }
+    }
+
+    function openPrint() {
+      const now = new Date();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const y = String(now.getFullYear());
+      const params = new URLSearchParams();
+      params.set('month', m);
+      params.set('year', y);
+      window.open('/charges/print?' + params.toString(), '_blank');
+    }
+
+  </script>
+<footer style="text-align:center;padding:1.5rem 0 0.8rem;font-size:0.7rem;color:#484f58"><a href="https://github.com/TheInGoF/IDMate-dev" target="_blank" style="color:#484f58;text-decoration:none">&copy; 2025–2026 ID·Mate &middot; AGPL v3 &middot; v{{ version }}</a></footer>
+
+  <script>
+  (function(){
+    const ACTIVE_ID = {{ (active_vehicle.id if active_vehicle else 'null') | tojson }};
+    async function initVehPicker() {
+      const picker = document.getElementById('vehPicker');
+      if (!picker) return;
+      const res = await fetch('/api/vehicles');
+      const vehicles = await res.json();
+      if (vehicles.length <= 1) { picker.style.cursor = 'default'; return; }
+      document.getElementById('vehDropdown').innerHTML = vehicles.map(v =>
+        `<div class="veh-opt ${v.id === ACTIVE_ID ? 'active' : ''}" onclick="switchVehicle(${v.id},event)">${v.name || v.plate}</div>`
+      ).join('');
+    }
+    window.toggleVehPicker = function(e) {
+      e.stopPropagation();
+      document.getElementById('vehPicker').classList.toggle('open');
+    };
+    window.switchVehicle = async function(id, e) {
+      e.stopPropagation();
+      await fetch('/api/user/active-vehicle', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({vehicle_id:id})});
+      location.reload();
+    };
+    document.addEventListener('click', () => {
+      const p = document.getElementById('vehPicker');
+      if (p) p.classList.remove('open');
+    });
+    initVehPicker();
+  })();
+  </script>
+</body>
+</html>

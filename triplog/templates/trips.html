@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="{{ current_lang|lower }}">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'><rect width='128' height='128' rx='28' fill='%230E1B2C'/><circle cx='38' cy='34' r='6' fill='%231DE9B6'/><rect x='32' y='46' width='12' height='56' rx='3' fill='%23E8EEF7'/><rect x='56' y='34' width='44' height='68' rx='10' fill='none' stroke='%23E8EEF7' stroke-width='6'/><rect x='72' y='26' width='12' height='10' rx='2' fill='%23E8EEF7'/><rect x='64' y='58' width='28' height='36' rx='4' fill='%231DE9B6'/><path d='M80 62 l-10 16 h8 l-4 12 14 -18 h-8 z' fill='%230E1B2C'/></svg>">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0d1117">
+  <title>ID·Mate — {{ t.trips_title }}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d1117; color: #e6edf3; overflow-x:hidden; }
+
+    /* Header + Burger */
+    .hdr{display:flex;align-items:center;padding:0.5rem 1rem;border-bottom:1px solid #21262d;height:45px;max-width:1200px;margin:0 auto;position:sticky;top:0;z-index:1000;background:#0d1117}
+    .hdr h1{font-size:1rem;font-weight:600;flex:1;margin:0}
+    
+    /* Vehicle Picker */
+    .veh-picker{position:relative;display:flex;align-items:center;gap:0.3rem;padding:0.2rem 0.5rem;border-radius:6px;cursor:pointer;color:#8b949e;font-size:0.8rem;user-select:none;border:1px solid transparent;transition:border-color .15s,background .15s}
+    .veh-picker:hover{background:#161b22;border-color:#30363d;color:#e6edf3}
+    .veh-chevron{opacity:0.5;transition:transform .2s;flex-shrink:0}
+    .veh-picker.open .veh-chevron{transform:rotate(180deg)}
+    .veh-dropdown{display:none;position:absolute;top:calc(100% + 4px);right:0;min-width:150px;background:#161b22;border:1px solid #30363d;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:500;overflow:hidden}
+    .veh-picker.open .veh-dropdown{display:block}
+    .veh-opt{padding:0.5rem 0.8rem;font-size:0.8rem;color:#8b949e;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:0.5rem}
+    .veh-opt:hover{background:#21262d;color:#e6edf3}
+    .veh-opt.active{color:#58a6ff}
+    .veh-opt::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:transparent;flex-shrink:0}
+    .veh-opt.active::before{background:#58a6ff}
+
+    .burger{background:none;border:none;color:#8b949e;font-size:1.4rem;cursor:pointer;padding:0.2rem 0.4rem;line-height:1}
+    .burger:hover{color:#e6edf3}
+    .menu-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000}
+    .menu-overlay.open{display:block}
+    .menu{position:fixed;top:0;right:-260px;width:260px;height:100%;background:#161b22;border-left:1px solid #30363d;z-index:10001;transition:right .25s ease;padding:1rem 0}
+    .menu.open{right:0}
+    .menu a{display:block;padding:0.8rem 1.2rem;color:#e6edf3;text-decoration:none;font-size:0.95rem;border-bottom:1px solid #21262d}
+    .menu a:hover{background:#21262d}
+    .menu .close-btn{text-align:right;padding:0.4rem 1rem;color:#8b949e;cursor:pointer;font-size:1.2rem}
+
+    .content{max-width:1200px;margin:0 auto;padding:0.8rem}
+
+    /* Toolbar */
+    .toolbar{display:flex;gap:0.5rem;margin-bottom:0.8rem;flex-wrap:wrap;align-items:center}
+    .toolbar select,.toolbar button,.toolbar a,.toolbar input[type="date"]{
+      padding:0.35rem 0.7rem;border-radius:6px;border:1px solid #30363d;
+      background:#161b22;color:#e6edf3;font-size:0.8rem;cursor:pointer;text-decoration:none}
+    .toolbar input[type="date"]{width:130px}
+    .toolbar input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(0.7)}
+    .toolbar button:hover,.toolbar a:hover{background:#21262d}
+    .toolbar .quick-btn{font-size:0.7rem;padding:0.25rem 0.5rem;color:#8b949e;border-color:#21262d}
+    .toolbar .quick-btn:hover,.toolbar .quick-btn.active{color:#e6edf3;border-color:#58a6ff;background:#161b22}
+    .toolbar .export-btn{border-color:#238636;color:#3fb950}
+    .toolbar .export-btn:hover{background:#238636;color:#fff}
+    .stats{font-size:0.75rem;color:#8b949e;margin-left:auto}
+    .hint{font-size:0.75rem;color:#d29922;margin-top:0.8rem;padding:0.5rem 0.6rem;border:1px solid #30363d;border-radius:6px;background:#161b22}
+
+    /* Table */
+    table{width:100%;border-collapse:collapse;font-size:0.8rem;table-layout:fixed}
+    col.col-cb{width:28px} col.col-date{width:90px} col.col-addr{width:auto}
+    col.col-num{width:55px} col.col-soc{width:62px} col.col-cons{width:58px}
+    col.col-purpose{width:80px}
+    col.col-dest{width:90px}
+    col.col-reason{width:80px}
+    col.col-note{width:65px}
+    th{text-align:left;padding:0.4rem;border-bottom:2px solid #30363d;color:#8b949e;font-weight:500;position:sticky;top:0;background:#0d1117;z-index:2;white-space:nowrap}
+    td{padding:0.4rem;border-bottom:1px solid #21262d;vertical-align:middle}
+    tr:hover{background:#161b22}
+    tr.kb-focus{outline:2px solid #58a6ff;outline-offset:-2px}
+    .cb{width:16px;height:16px;accent-color:#58a6ff}
+    .addr{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+    /* Inline controls */
+    .isel{background:#161b22;color:#e6edf3;border:1px solid #30363d;border-radius:4px;padding:0.2rem 0.3rem;font-size:0.75rem;cursor:pointer;max-width:90px}
+    .isel:focus{border-color:#58a6ff;outline:none}
+    .iinput{background:#161b22;color:#e6edf3;border:1px solid #30363d;border-radius:4px;padding:0.2rem 0.3rem;font-size:0.75rem;width:80px}
+    .iinput:focus{border-color:#58a6ff;outline:none}
+
+    /* Autocomplete dropdown */
+
+
+
+    /* Purpose colors — set dynamically via JS */
+
+    /* Row clickable */
+    tr[data-id]{cursor:pointer}
+
+    /* Batch bar */
+    .batch-bar{display:none;position:fixed;bottom:0;left:0;right:0;background:#161b22;border-top:1px solid #30363d;padding:0.5rem 0.8rem;padding-bottom:calc(0.5rem + env(safe-area-inset-bottom,0px));gap:0.5rem;align-items:center;z-index:50;flex-wrap:wrap}
+    .batch-bar.visible{display:flex}
+    .batch-bar span{font-size:0.8rem;color:#8b949e}
+    .batch-bar select,.batch-bar input{padding:0.3rem 0.5rem;border-radius:6px;border:1px solid #30363d;background:#21262d;color:#e6edf3;font-size:0.8rem}
+    .batch-bar button{padding:0.3rem 0.7rem;border-radius:6px;border:1px solid #238636;background:#238636;color:#fff;font-size:0.8rem;font-weight:500;cursor:pointer}
+    .batch-bar button:hover{background:#2ea043}
+  </style>
+</head>
+<body>
+  <div class="menu-overlay" id="menuOverlay" onclick="toggleMenu()"></div>
+  <div class="menu" id="menu">
+    <div class="close-btn" onclick="toggleMenu()">&times;</div>
+    <a href="/">{{ t.nav_dashboard }}</a>
+    <a href="/trips">{{ t.nav_trips }}</a>
+    <a href="/journeys">{{ t.nav_journeys }}</a>
+    <a href="/analysis">{{ t.nav_analysis }}</a>
+    <a href="/charges">{{ t.nav_charges }}</a>
+    <a href="/admin">{{ t.nav_admin }}</a>
+    <a href="/logout" style="color:#da3633;margin-top:1rem">{{ t.nav_logout }}</a>
+  </div>
+
+  <div class="hdr">
+    <h1><a href="/" style="color:#58a6ff;text-shadow:0 0 8px rgba(88,166,255,0.4);text-decoration:none">ID·Mate</a> — {{ t.trips_title }}</h1>
+    {% if active_vehicle %}
+    <div class="veh-picker" id="vehPicker" onclick="toggleVehPicker(event)">
+      <span id="vehPickerLabel">{{ vehicle_name }}</span>
+      <svg class="veh-chevron" viewBox="0 0 10 6" width="10" height="6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div class="veh-dropdown" id="vehDropdown"></div>
+    </div>
+    {% endif %}
+    <button class="burger" onclick="toggleMenu()">&#9776;</button>
+  </div>
+
+  <div class="content">
+  <div class="toolbar">
+    <label><input type="checkbox" id="selectAll" class="cb"> {{ t.common_all }}</label>
+    <input type="date" id="dateFrom" value="{{ date_from or today }}" title="{{ t.common_from }}">
+    <input type="date" id="dateTo" value="{{ date_to or today }}" title="{{ t.common_to }}">
+    <button onclick="applyDateRange()">{{ t.common_show }}</button>
+    <button class="quick-btn" onclick="quickRange(7)">{{ t.common_7d }}</button>
+    <button class="quick-btn" onclick="quickRange(30)">{{ t.common_30d }}</button>
+    <button class="quick-btn" onclick="quickRange(90)">{{ t.common_90d }}</button>
+    <button class="quick-btn" onclick="quickRange(365)">{{ t.common_1y }}</button>
+    <button class="quick-btn" onclick="clearRange()">{{ t.trips_last_20 }}</button>
+    <select id="quickSelect" onchange="quickSelectMonth(this.value)" style="padding:0.3rem 0.5rem;border-radius:6px;border:1px solid #30363d;background:#161b22;color:#8b949e;font-size:0.75rem;cursor:pointer">
+      <option value="" disabled selected>{{ t.common_quick_select }}</option>
+      <option value="this_month">{{ t.common_this_month }}</option>
+      <option value="last_month">{{ t.common_last_month }}</option>
+    </select>
+    <select id="filterPurpose" onchange="applyFilter()" style="padding:0.3rem 0.5rem;border-radius:6px;border:1px solid #30363d;background:#161b22;color:#8b949e;font-size:0.75rem;cursor:pointer">
+      <option value="">{{ t.trips_all_purposes }}</option>
+      <option value="__none__" {% if filter_mode == 'uncategorized' %}selected{% endif %}>{{ t.trips_uncategorized }}</option>
+    </select>
+    {% if date_from and date_to %}
+    <a class="export-btn" href="/export/csv?from={{ date_from }}&to={{ date_to }}">CSV</a>
+    <a class="export-btn" href="/export/gpx?from={{ date_from }}&to={{ date_to }}">GPX</a>
+    {% endif %}
+    <span class="stats" id="stats"></span>
+  </div>
+
+  <div style="overflow-x:auto">
+  <table>
+    <colgroup>
+      <col class="col-cb"><col class="col-date"><col class="col-addr"><col class="col-addr">
+      <col class="col-num"><col class="col-soc"><col class="col-cons">
+      <col class="col-purpose"><col class="col-dest"><col class="col-reason">
+      <col class="col-note">
+    </colgroup>
+    <thead>
+      <tr>
+        <th></th>
+        <th>{{ t.common_date }}</th>
+        <th>{{ t.trips_col_from }}</th>
+        <th>{{ t.trips_col_to }}</th>
+        <th class="num">km</th>
+        <th class="num">SoC</th>
+        <th class="num" style="font-size:0.7rem;line-height:1.1">kWh/<br>100km</th>
+        <th>{{ t.trips_col_purpose }}</th>
+        <th>{{ t.trips_col_destination }}</th>
+        <th>{{ t.trips_col_reason }}</th>
+        <th>{{ t.trips_col_note }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in trips %}
+      <tr data-purpose="{{ t.purpose or '' }}"
+          data-id="{{ t.id }}"
+          data-slat="{{ t.start_lat or '' }}" data-slon="{{ t.start_lon or '' }}"
+          data-elat="{{ t.end_lat or '' }}" data-elon="{{ t.end_lon or '' }}"
+          data-saddr="{{ t.start_address or '' }}" data-eaddr="{{ t.end_address or '' }}"
+          data-dist="{{ t.distance_km or '' }}" data-energy="{{ t.energy_kwh or '' }}"
+          data-cons="{{ t.consumption or '' }}"
+          data-soc0="{{ t.soc_start or '' }}" data-soc1="{{ t.soc_end or '' }}"
+          data-t0="{{ t.start_time }}" data-t1="{{ t.end_time }}"
+          >
+        <td><input type="checkbox" class="cb trip-cb" value="{{ t.id }}"></td>
+        <td class="trip-time-cell" style="white-space:nowrap;cursor:pointer" title="Details anzeigen"></td>
+        <td class="addr" title="{{ t.start_address or '' }}">{{ t.start_address or '--' }}</td>
+        <td class="addr" title="{{ t.end_address or '' }}">{{ t.end_address or '--' }}</td>
+        <td class="num">{{ '%.1f' % t.distance_km if t.distance_km else '--' }}</td>
+        <td class="num" style="white-space:nowrap">{{ '%.0f' % t.soc_start if t.soc_start else '?' }}&rarr;{{ '%.0f' % t.soc_end if t.soc_end else '?' }}%</td>
+        <td class="num">{{ '%.1f' % t.consumption if t.consumption else '--' }}</td>
+        <td class="purpose-cell" style="font-size:0.75rem">{{ t.purpose or '--' }}</td>
+        <td style="font-size:0.75rem">{{ t.destination or '--' }}</td>
+        <td style="font-size:0.75rem">{{ t.visit_reason or '--' }}</td>
+        <td>
+          <input class="iinput" data-field="note" data-id="{{ t.id }}"
+                 value="{{ t.note or '' }}" placeholder="--" style="width:100%"
+                 onchange="saveField(this)">
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+
+  {% if uncategorized > 0 and filter_mode != 'uncategorized' %}
+  <a class="hint" href="/trips?filter=uncategorized" style="display:block;text-decoration:none">
+    {{ t.trips_no_purpose_hint|replace('{0}', uncategorized|string) }} &rarr;
+  </a>
+  {% endif %}
+
+  {% if filter_mode == 'uncategorized' %}
+  <div class="hint" style="color:#8b949e">
+    {{ t.trips_batch_hint }}
+  </div>
+  {% endif %}
+
+  <!-- Batch bar -->
+  <div class="batch-bar" id="batchBar">
+    <span id="batchCount">0</span>
+    <span id="quickButtons"></span>
+    <span style="color:#30363d">|</span>
+    <select id="batchPurpose" style="width:110px"><option value="">{{ t.trips_purpose_placeholder }}</option></select>
+    <select id="batchDest" style="width:120px"><option value="">{{ t.trips_destination_placeholder }}</option></select>
+    <select id="batchReason" style="width:110px"><option value="">{{ t.trips_reason_placeholder }}</option></select>
+    <button onclick="applyBatch()">{{ t.common_apply }}</button>
+    <button id="mergeBtn" style="display:none;margin-left:auto;background:#da3633;border-color:#da3633" onclick="mergeTrips()">{{ t.trips_merge }}</button>
+  </div>
+  </div><!-- .content -->
+
+  <script>
+    // ── Local time string → Date object ──
+    function parseLocal(s) {
+      let n = s.trim().replace(' ', 'T').replace(/\+00:00$/, '').replace(/Z$/, '');
+      return new Date(n);
+    }
+    function fmtDate(d) {
+      return d.toLocaleDateString('{{ current_lang|lower }}', {year:'numeric', month:'2-digit', day:'2-digit'});
+    }
+    function fmtTime(d) {
+      return d.toLocaleTimeString('{{ current_lang|lower }}', {hour:'2-digit', minute:'2-digit', hour12:false});
+    }
+    // Populate time cells
+    document.querySelectorAll('tr[data-t0]').forEach(tr => {
+      const d0 = parseLocal(tr.dataset.t0);
+      const d1 = parseLocal(tr.dataset.t1);
+      const cell = tr.querySelector('.trip-time-cell');
+      if (cell) {
+        cell.innerHTML = fmtDate(d0) + '<br><small style="color:#8b949e">' + fmtTime(d0) + '–' + fmtTime(d1) + '</small>';
+      }
+    });
+
+    // ── Navigate to detail page on row click ──
+    document.addEventListener('click', function(e) {
+      // Don't navigate when clicking checkboxes, inputs, or selects
+      if (e.target.closest('input, select, button, a')) return;
+      const tr = e.target.closest('tr[data-id]');
+      if (!tr) return;
+      window.location.href = '/trips/' + tr.dataset.id;
+    });
+
+    // ── State ──
+    let opts = { purposes: [], visit_reasons: [], private_purposes: [], purpose_meta: [], locations: [] };
+    let purposeColorMap = {};  // name → color
+    let purposePrivateSet = new Set();
+    let allPurposes = [];
+    let allDestinations = [];
+    let allReasons = [];
+
+    // ── Init ──
+    async function init() {
+      const [optRes, valRes] = await Promise.all([
+        fetch('/api/fahrtenbuch/options'),
+        fetch('/api/admin/values')
+      ]);
+      opts = await optRes.json();
+      const vals = await valRes.json();
+
+      // Build color map from purpose_meta
+      (opts.purpose_meta || []).forEach(m => {
+        purposeColorMap[m.name] = m.color;
+        if (m.is_private) purposePrivateSet.add(m.name);
+      });
+
+      // Merge meta + used values (deduplicated)
+      const pSet = new Set(opts.purposes);
+      vals.purposes.forEach(p => pSet.add(p.name));
+      allPurposes = [...pSet];
+
+      const dSet = new Set();
+      vals.destinations.forEach(d => dSet.add(d.name));
+      allDestinations = [...dSet];
+
+      const rSet = new Set(opts.visit_reasons);
+      vals.visit_reasons.forEach(r => rSet.add(r.name));
+      allReasons = [...rSet];
+
+      // Populate batch dropdowns
+      const userDefaultPurpose = {{ user_default_purpose | tojson }};
+      const bpSel = document.getElementById('batchPurpose');
+      allPurposes.forEach(p => { const o = new Option(p, p); bpSel.add(o); });
+      if (userDefaultPurpose) bpSel.value = userDefaultPurpose;
+
+      const bdSel = document.getElementById('batchDest');
+      allDestinations.forEach(d => { const o = new Option(d, d); bdSel.add(o); });
+
+      const brSel = document.getElementById('batchReason');
+      allReasons.forEach(r => { const o = new Option(r, r); brSel.add(o); });
+
+      // Main purpose quick button (configured in Admin > Trip Purposes)
+      const mainPurpose = (opts.purpose_meta || []).find(m => m.is_main);
+      if (mainPurpose) {
+        const col = mainPurpose.color || '#8b949e';
+        document.getElementById('quickButtons').innerHTML =
+          `<button onclick="quickBatch('${esc(mainPurpose.name)}')" style="background:${col};border-color:${col}">${mainPurpose.name}</button>`;
+      } else {
+        document.getElementById('quickButtons').innerHTML = '';
+      }
+
+      // Populate filter dropdown with purposes
+      const filterSel = document.getElementById('filterPurpose');
+      allPurposes.forEach(p => {
+        const o = document.createElement('option');
+        o.value = p;
+        o.textContent = p;
+        if ('{{ filter_mode }}' === p) o.selected = true;
+        filterSel.appendChild(o);
+      });
+
+      // Apply purpose colors to cells and rows
+      applyRowColors();
+      document.querySelectorAll('.purpose-cell').forEach(td => {
+        const p = td.textContent.trim();
+        if (p && p !== '--' && purposeColorMap[p]) td.style.color = purposeColorMap[p];
+      });
+    }
+
+    function applyRowColors() {
+      document.querySelectorAll('tr[data-purpose]').forEach(tr => {
+        const p = tr.dataset.purpose;
+        tr.classList.remove('row-privat', 'row-dienstlich');
+        if (!p) return;
+        const col = purposeColorMap[p];
+        if (col) {
+          tr.style.background = hexToRgba(col, 0.08);
+        } else if (purposePrivateSet.has(p)) {
+          tr.classList.add('row-privat');
+        }
+      });
+    }
+
+    function hexToRgba(hex, alpha) {
+      const r = parseInt(hex.slice(1,3), 16);
+      const g = parseInt(hex.slice(3,5), 16);
+      const b = parseInt(hex.slice(5,7), 16);
+      return `rgba(${r},${g},${b},${alpha})`;
+    }
+
+    // ── Burger menu ──
+    function toggleMenu() {
+      document.getElementById('menu').classList.toggle('open');
+      document.getElementById('menuOverlay').classList.toggle('open');
+    }
+    // ── Save field ──
+    async function saveField(el) {
+      const id = el.dataset.id;
+      const field = el.dataset.field;
+      await fetch(`/api/trips/${id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [field]: el.value })
+      });
+    }
+
+    // ── Checkboxes + Batch ──
+    document.getElementById('selectAll').addEventListener('change', function () {
+      document.querySelectorAll('.trip-cb').forEach(cb => cb.checked = this.checked);
+      updateBatchBar();
+    });
+    document.addEventListener('change', function (e) {
+      if (e.target.classList.contains('trip-cb')) updateBatchBar();
+    });
+
+    function getSelectedIds() {
+      return [...document.querySelectorAll('.trip-cb:checked')].map(cb => parseInt(cb.value));
+    }
+
+    function updateBatchBar() {
+      const ids = getSelectedIds();
+      const bar = document.getElementById('batchBar');
+      if (ids.length > 0) {
+        bar.classList.add('visible');
+        document.getElementById('batchCount').textContent = ids.length + ' {{ t.common_selected }}';
+        document.getElementById('mergeBtn').style.display = ids.length === 2 ? '' : 'none';
+      } else {
+        bar.classList.remove('visible');
+      }
+    }
+
+    async function mergeTrips() {
+      const ids = getSelectedIds();
+      if (ids.length !== 2) return;
+      const rows = ids.map(id => document.querySelector(`tr[data-id="${id}"]`));
+      const labels = rows.map(r => r ? r.querySelector('td:nth-child(2)')?.textContent?.trim() : id);
+      if (!confirm('{{ t.trips_merge_confirm }}' + '\n\n' + labels[0] + '\n+ ' + labels[1] + '\n\n' + '{{ t.trips_merge_note }}')) return;
+      const res = await fetch('/api/trips/merge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids })
+      });
+      const json = await res.json();
+      if (!res.ok) { alert('{{ t.common_error }}: ' + (json.error || res.status)); return; }
+      location.reload();
+    }
+
+    // ── Keyboard navigation (Arrow Up/Down + Space) ──
+    let kbIndex = -1;
+    function getTripRows() {
+      return [...document.querySelectorAll('tbody tr[data-id]')];
+    }
+    function setKbFocus(idx) {
+      const rows = getTripRows();
+      if (!rows.length) return;
+      rows.forEach(r => r.classList.remove('kb-focus'));
+      kbIndex = Math.max(0, Math.min(idx, rows.length - 1));
+      rows[kbIndex].classList.add('kb-focus');
+      rows[kbIndex].scrollIntoView({ block: 'nearest' });
+    }
+    document.addEventListener('keydown', function(e) {
+      // Skip when focus is inside an input/select/textarea
+      const tag = document.activeElement.tagName;
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+
+      const rows = getTripRows();
+      if (!rows.length) return;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setKbFocus(kbIndex + 1);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setKbFocus(kbIndex - 1);
+      } else if (e.key === ' ' && kbIndex >= 0) {
+        e.preventDefault();
+        const cb = rows[kbIndex].querySelector('.trip-cb');
+        if (cb) { cb.checked = !cb.checked; updateBatchBar(); }
+      }
+    });
+
+    async function quickBatch(purpose) {
+      const ids = getSelectedIds();
+      if (!ids.length) return;
+
+      await fetch('/api/trips/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, purpose })
+      });
+      location.reload();
+    }
+
+    async function applyBatch() {
+      const ids = getSelectedIds();
+      if (!ids.length) return;
+
+      const data = { ids };
+      const p = document.getElementById('batchPurpose').value;
+      const d = document.getElementById('batchDest').value;
+      const r = document.getElementById('batchReason').value;
+      if (p) data.purpose = p;
+      if (d) data.destination = d;
+      if (r) data.visit_reason = r;
+
+      if (!p && !d && !r) return alert('{{ t.trips_at_least_one_field }}');
+
+      await fetch('/api/trips/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      location.reload();
+    }
+
+    // ── Helpers ──
+    function esc(s) {
+      return s.replace(/'/g, "\\'");
+    }
+
+    // ── Date picker ──
+    function applyDateRange() {
+      const from = document.getElementById('dateFrom').value;
+      const to = document.getElementById('dateTo').value;
+      if (from && to) {
+        fetch('/api/daterange', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ from, to })
+        }).then(() => { location.href = `/trips?from=${from}&to=${to}`; });
+        return;
+      }
+    }
+
+    function quickRange(days) {
+      const to = new Date();
+      const from = new Date();
+      from.setDate(from.getDate() - days);
+      document.getElementById('dateFrom').value = fmt(from);
+      document.getElementById('dateTo').value = fmt(to);
+      applyDateRange();
+    }
+
+    function quickSelectMonth(val) {
+      const now = new Date();
+      let from, to;
+      if (val === 'this_month') {
+        from = new Date(now.getFullYear(), now.getMonth(), 1);
+        to = now;
+      } else if (val === 'last_month') {
+        from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        to = new Date(now.getFullYear(), now.getMonth(), 0);
+      } else { return; }
+      document.getElementById('dateFrom').value = fmt(from);
+      document.getElementById('dateTo').value = fmt(to);
+      document.getElementById('quickSelect').selectedIndex = 0;
+      applyDateRange();
+    }
+
+    function clearRange() {
+      location.href = '/trips';
+    }
+
+    function applyFilter() {
+      const val = document.getElementById('filterPurpose').value;
+      if (val === '__none__') {
+        location.href = '/trips?filter=uncategorized';
+      } else if (val) {
+        location.href = '/trips?filter=' + encodeURIComponent(val);
+      } else {
+        location.href = '/trips';
+      }
+    }
+
+    function fmt(d) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+
+    fetch('/api/stats').then(r => r.json()).then(d => {
+      document.getElementById('stats').textContent =
+        '{{ t.trips_stats }}'.replace('{0}', d.total).replace('{1}', (d.km_privat || 0).toFixed(0)).replace('{2}', (d.km_dienstlich || 0).toFixed(0));
+    });
+
+    // Boot
+    init();
+  </script>
+<footer style="text-align:center;padding:1.5rem 0 0.8rem;font-size:0.7rem;color:#484f58"><a href="https://github.com/TheInGoF/IDMate-dev" target="_blank" style="color:#484f58;text-decoration:none">&copy; 2025–2026 ID·Mate &middot; AGPL v3 &middot; v{{ version }}</a></footer>
+
+  <script>
+  (function(){
+    const ACTIVE_ID = {{ (active_vehicle.id if active_vehicle else 'null') | tojson }};
+    async function initVehPicker() {
+      const picker = document.getElementById('vehPicker');
+      if (!picker) return;
+      const res = await fetch('/api/vehicles');
+      const vehicles = await res.json();
+      if (vehicles.length <= 1) { picker.style.cursor = 'default'; return; }
+      document.getElementById('vehDropdown').innerHTML = vehicles.map(v =>
+        `<div class="veh-opt ${v.id === ACTIVE_ID ? 'active' : ''}" onclick="switchVehicle(${v.id},event)">${v.name || v.plate}</div>`
+      ).join('');
+    }
+    window.toggleVehPicker = function(e) {
+      e.stopPropagation();
+      document.getElementById('vehPicker').classList.toggle('open');
+    };
+    window.switchVehicle = async function(id, e) {
+      e.stopPropagation();
+      await fetch('/api/user/active-vehicle', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({vehicle_id:id})});
+      location.reload();
+    };
+    document.addEventListener('click', () => {
+      const p = document.getElementById('vehPicker');
+      if (p) p.classList.remove('open');
+    });
+    initVehPicker();
+  })();
+  </script>
+</body>
+</html>

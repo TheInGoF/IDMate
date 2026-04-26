@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="{{ current_lang|lower }}">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'><rect width='128' height='128' rx='28' fill='%230E1B2C'/><circle cx='38' cy='34' r='6' fill='%231DE9B6'/><rect x='32' y='46' width='12' height='56' rx='3' fill='%23E8EEF7'/><rect x='56' y='34' width='44' height='68' rx='10' fill='none' stroke='%23E8EEF7' stroke-width='6'/><rect x='72' y='26' width='12' height='10' rx='2' fill='%23E8EEF7'/><rect x='64' y='58' width='28' height='36' rx='4' fill='%231DE9B6'/><path d='M80 62 l-10 16 h8 l-4 12 14 -18 h-8 z' fill='%230E1B2C'/></svg>">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0d1117">
+  <title>ID·Mate — {{ t.trip_detail_trip }} <span id="titleDate">{{ trip.start_time[:10] }}</span></title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d1117;color:#e6edf3;overflow-x:hidden}
+
+    .hdr{display:flex;align-items:center;padding:0.5rem 1rem;border-bottom:1px solid #21262d;height:45px;max-width:1200px;margin:0 auto;position:sticky;top:0;z-index:1100;background:#0d1117}
+    .leaflet-top,.leaflet-bottom{z-index:500!important}
+    .hdr h1{font-size:1rem;font-weight:600;flex:1;margin:0}
+    
+    /* Vehicle Picker */
+    .veh-picker{position:relative;display:flex;align-items:center;gap:0.3rem;padding:0.2rem 0.5rem;border-radius:6px;cursor:pointer;color:#8b949e;font-size:0.8rem;user-select:none;border:1px solid transparent;transition:border-color .15s,background .15s}
+    .veh-picker:hover{background:#161b22;border-color:#30363d;color:#e6edf3}
+    .veh-chevron{opacity:0.5;transition:transform .2s;flex-shrink:0}
+    .veh-picker.open .veh-chevron{transform:rotate(180deg)}
+    .veh-dropdown{display:none;position:absolute;top:calc(100% + 4px);right:0;min-width:150px;background:#161b22;border:1px solid #30363d;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:500;overflow:hidden}
+    .veh-picker.open .veh-dropdown{display:block}
+    .veh-opt{padding:0.5rem 0.8rem;font-size:0.8rem;color:#8b949e;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:0.5rem}
+    .veh-opt:hover{background:#21262d;color:#e6edf3}
+    .veh-opt.active{color:#58a6ff}
+    .veh-opt::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:transparent;flex-shrink:0}
+    .veh-opt.active::before{background:#58a6ff}
+
+    .burger{background:none;border:none;color:#8b949e;font-size:1.4rem;cursor:pointer;padding:0.2rem 0.4rem;line-height:1}
+    .burger:hover{color:#e6edf3}
+    .menu-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000}
+    .menu-overlay.open{display:block}
+    .menu{position:fixed;top:0;right:-260px;width:260px;height:100%;background:#161b22;border-left:1px solid #30363d;z-index:10001;transition:right .25s ease;padding:1rem 0}
+    .menu.open{right:0}
+    .menu a{display:block;padding:0.8rem 1.2rem;color:#e6edf3;text-decoration:none;font-size:0.95rem;border-bottom:1px solid #21262d}
+    .menu a:hover{background:#21262d}
+    .menu .close-btn{text-align:right;padding:0.4rem 1rem;color:#8b949e;cursor:pointer;font-size:1.2rem}
+
+    .content{max-width:1200px;margin:0 auto;padding:0.8rem}
+
+    /* Back link */
+    .back{display:inline-flex;align-items:center;gap:0.3rem;color:#58a6ff;text-decoration:none;font-size:0.85rem;margin-bottom:0.8rem}
+    .back:hover{text-decoration:underline}
+
+    /* Two-column layout */
+    .detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem}
+    @media(max-width:768px){.detail-grid{grid-template-columns:1fr}}
+
+    /* Cards */
+    .card{background:#161b22;border:1px solid #21262d;border-radius:8px;padding:1rem;overflow:hidden}
+    .card h2{font-size:0.9rem;color:#58a6ff;margin-bottom:0.8rem;font-weight:600}
+
+    /* Map */
+    .trip-map{width:100%;height:300px;border-radius:6px}
+    .map-icon-badge{width:24px;height:24px;border-radius:5px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.7);overflow:hidden}
+    .cluster-grid{display:grid;gap:3px}
+    .cluster-grid.g1{grid-template-columns:1fr}
+    .cluster-grid.g2{grid-template-columns:auto auto}
+
+    /* Info rows */
+    .info-row{display:flex;justify-content:space-between;padding:0.35rem 0;border-bottom:1px solid #21262d;font-size:0.85rem}
+    .info-row:last-child{border-bottom:none}
+    .info-label{color:#8b949e}
+    .info-val{color:#e6edf3;text-align:right}
+
+    /* Coordinate links */
+    .coord-link{color:#58a6ff;cursor:pointer;text-decoration:none;font-size:0.8rem}
+    .coord-link:hover{text-decoration:underline}
+
+    /* Chart */
+    .chart-wrap{position:relative;width:100%;height:280px}
+    .chart-wrap canvas{width:100%!important;height:100%!important}
+
+    /* Delete button */
+    .btn-retag{padding:0.4rem 0.8rem;border-radius:6px;border:1px solid #3fb950;background:transparent;color:#3fb950;font-size:0.8rem;cursor:pointer;margin-top:0.8rem}
+    .btn-retag:hover{background:#3fb950;color:#fff}
+    .btn-delete{padding:0.4rem 0.8rem;border-radius:6px;border:1px solid #da3633;background:transparent;color:#da3633;font-size:0.8rem;cursor:pointer;margin-top:0.8rem}
+    .btn-delete:hover{background:#da3633;color:#fff}
+
+    /* Geofence prompt */
+    .geo-prompt{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#161b22;border:1px solid #30363d;border-radius:10px;padding:1.2rem;z-index:10001;min-width:300px;display:none}
+    .geo-prompt.open{display:block}
+    .geo-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:none}
+    .geo-overlay.open{display:block}
+    .geo-prompt h3{font-size:0.95rem;margin-bottom:0.6rem}
+    .geo-prompt p{font-size:0.8rem;color:#8b949e;margin-bottom:0.8rem}
+    .geo-prompt .btns{display:flex;gap:0.5rem;justify-content:flex-end}
+    .geo-prompt .btns button{padding:0.35rem 0.7rem;border-radius:6px;border:1px solid #30363d;font-size:0.8rem;cursor:pointer}
+    .geo-prompt .btn-cancel{background:#21262d;color:#e6edf3}
+    .geo-prompt .btn-ok{background:#238636;border-color:#238636;color:#fff}
+
+    /* Editable field values */
+    .editable-val{cursor:pointer;border-bottom:1px dashed #30363d;padding-bottom:1px}
+    .editable-val:hover{color:#58a6ff;border-color:#58a6ff}
+    .field-select{display:none;background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:4px;padding:0.25rem 0.4rem;font-size:0.8rem;max-width:180px}
+    .field-select.open{display:inline-block}
+
+    /* Clear address button */
+    .btn-clear-addr{background:none;border:none;color:#da3633;font-size:0.9rem;cursor:pointer;padding:0 0.2rem;vertical-align:middle;line-height:1}
+    .btn-clear-addr:hover{color:#ff7b72}
+
+    /* Note input */
+    .note-input{width:100%;background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:4px;padding:0.3rem 0.5rem;font-size:0.8rem;margin-top:0.3rem}
+    .note-input:focus{border-color:#58a6ff;outline:none}
+  </style>
+</head>
+<body>
+  <div class="menu-overlay" id="menuOverlay" onclick="toggleMenu()"></div>
+  <div class="menu" id="menu">
+    <div class="close-btn" onclick="toggleMenu()">&times;</div>
+    <a href="/">{{ t.nav_dashboard }}</a>
+    <a href="/trips">{{ t.nav_trips }}</a>
+    <a href="/journeys">{{ t.nav_journeys }}</a>
+    <a href="/analysis">{{ t.nav_analysis }}</a>
+    <a href="/charges">{{ t.nav_charges }}</a>
+    <a href="/admin">{{ t.nav_admin }}</a>
+    <a href="/logout" style="color:#da3633;margin-top:1rem">{{ t.nav_logout }}</a>
+  </div>
+
+  <!-- Geofence prompt -->
+  <div class="geo-overlay" id="geoOverlay" onclick="closeGeoPrompt()"></div>
+  <div class="geo-prompt" id="geoPrompt">
+    <h3>{{ t.trip_detail_geofence_title }}</h3>
+    <p id="geoCoordText"></p>
+    <div class="btns">
+      <button class="btn-cancel" onclick="closeGeoPrompt()">{{ t.common_cancel }}</button>
+      <button class="btn-ok" id="geoConfirmBtn">{{ t.trip_detail_geofence_create }}</button>
+    </div>
+  </div>
+
+  <div class="hdr">
+    <h1><a href="/" style="color:#58a6ff;text-shadow:0 0 8px rgba(88,166,255,0.4);text-decoration:none">ID·Mate</a> — {{ t.trip_detail_title }}</h1>
+    {% if active_vehicle %}
+    <div class="veh-picker" id="vehPicker" onclick="toggleVehPicker(event)">
+      <span id="vehPickerLabel">{{ vehicle_name }}</span>
+      <svg class="veh-chevron" viewBox="0 0 10 6" width="10" height="6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div class="veh-dropdown" id="vehDropdown"></div>
+    </div>
+    {% endif %}
+    <button class="burger" onclick="toggleMenu()">&#9776;</button>
+  </div>
+
+  <div class="content">
+    <a class="back" href="/trips">&larr; {{ t.trip_detail_back }}</a>
+
+    <div class="detail-grid">
+      <!-- Left column: Map + Chart -->
+      <div>
+        {% if trip.start_lat or trip.end_lat %}
+        <div class="card" style="margin-bottom:1rem">
+          <h2>{{ t.trip_detail_route }}</h2>
+          <div class="trip-map" id="tripMap"></div>
+        </div>
+        {% endif %}
+
+        <div class="card">
+          <h2>{{ t.trip_detail_chart }}</h2>
+          <div class="chart-wrap">
+            <canvas id="tripChart"></canvas>
+          </div>
+          <div id="chartLoading" style="text-align:center;color:#484f58;font-size:0.8rem;padding:1rem">{{ t.common_loading }}</div>
+        </div>
+      </div>
+
+      <!-- Right column: Details -->
+      <div>
+        <div class="card" style="margin-bottom:1rem">
+          <h2>{{ t.trip_detail_data }}</h2>
+          <div class="info-row"><span class="info-label">{{ t.common_date }}</span><span class="info-val" id="infoDate">{{ trip.start_time[:10] }}</span></div>
+          <div class="info-row"><span class="info-label">{{ t.trip_detail_time }}</span><span class="info-val" id="infoTime">{{ trip.start_time[11:16] }} – {{ trip.end_time[11:16] }}</span></div>
+          <div class="info-row"><span class="info-label">{{ t.common_duration }}</span><span class="info-val" id="duration"></span></div>
+          <div class="info-row"><span class="info-label">{{ t.common_distance }}</span><span class="info-val">{{ '%.1f km' % trip.distance_km if trip.distance_km else '--' }}</span></div>
+          <div class="info-row"><span class="info-label">{{ t.common_odometer }}</span><span class="info-val" id="odoVal">{{ '%.0f' % trip.odo_start if trip.odo_start else '?' }} &rarr; {{ '%.0f' % trip.odo_end if trip.odo_end else '?' }} km</span></div>
+          <div class="info-row"><span class="info-label">SoC</span><span class="info-val">{{ '%.0f' % trip.soc_start if trip.soc_start else '?' }} &rarr; {{ '%.0f' % trip.soc_end if trip.soc_end else '?' }} %</span></div>
+          <div class="info-row"><span class="info-label">{{ t.trip_detail_energy }}</span><span class="info-val">{{ '%.2f kWh' % trip.energy_kwh if trip.energy_kwh else '--' }}</span></div>
+          <div class="info-row"><span class="info-label">{{ t.trip_detail_consumption }}</span><span class="info-val">{{ '%.1f kWh/100km' % trip.consumption if trip.consumption else '--' }}</span></div>
+        </div>
+
+        <div class="card" style="margin-bottom:1rem">
+          <h2>{{ t.trip_detail_addresses }}</h2>
+          <div class="info-row"><span class="info-label">{{ t.trip_detail_start }}</span><span class="info-val" id="startAddr">{{ trip.start_address or '--' }}{% if trip.start_address %} <button class="btn-clear-addr" onclick="clearAddress('start')" title="{{ t.trip_detail_delete_address }}">&times;</button>{% endif %}</span></div>
+          {% if trip.start_lat and trip.start_lon %}
+          <div class="info-row">
+            <span class="info-label">{{ t.trip_detail_start_gps }}</span>
+            <span class="info-val">
+              <a class="coord-link" onclick="promptGeofence({{ trip.start_lat }}, {{ trip.start_lon }}, '{{ t.trip_detail_start }}')">
+                {{ '%.5f' % trip.start_lat }}, {{ '%.5f' % trip.start_lon }}
+              </a>
+              {% if start_loc %}
+              <br><small style="color:#3fb950">{{ start_loc.name }}</small>
+              {% endif %}
+            </span>
+          </div>
+          {% endif %}
+
+          <div class="info-row"><span class="info-label">{{ t.trip_detail_destination }}</span><span class="info-val" id="endAddr">{{ trip.end_address or '--' }}{% if trip.end_address %} <button class="btn-clear-addr" onclick="clearAddress('end')" title="{{ t.trip_detail_delete_address }}">&times;</button>{% endif %}</span></div>
+          {% if trip.end_lat and trip.end_lon %}
+          <div class="info-row">
+            <span class="info-label">{{ t.trip_detail_destination_gps }}</span>
+            <span class="info-val">
+              <a class="coord-link" onclick="promptGeofence({{ trip.end_lat }}, {{ trip.end_lon }}, '{{ t.trip_detail_destination }}')">
+                {{ '%.5f' % trip.end_lat }}, {{ '%.5f' % trip.end_lon }}
+              </a>
+              {% if end_loc %}
+              <br><small style="color:#3fb950">{{ end_loc.name }}</small>
+              {% endif %}
+            </span>
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="card" style="margin-bottom:1rem">
+          <h2>{{ t.trip_detail_logbook }}</h2>
+          <div class="info-row"><span class="info-label">{{ t.trip_detail_purpose }}</span><span class="info-val" id="valPurpose"><span class="editable-val" onclick="showFieldSelect('purpose')">{{ trip.purpose or '--' }}</span>{% if trip.purpose %} <button class="btn-clear-addr" onclick="clearField('purpose','{{ t.trip_detail_purpose }}')" title="{{ t.trip_detail_delete_purpose }}">&times;</button>{% endif %}<select class="field-select" id="selPurpose" onchange="saveField('purpose',this)" onblur="hideFieldSelect('purpose')"></select></span></div>
+          <div class="info-row"><span class="info-label">{{ t.trip_detail_trip_destination }}</span><span class="info-val" id="valDestination"><span class="editable-val" onclick="showFieldSelect('destination')">{{ trip.destination or '--' }}</span>{% if trip.destination %} <button class="btn-clear-addr" onclick="clearField('destination','{{ t.trip_detail_trip_destination }}')" title="{{ t.trip_detail_delete_destination }}">&times;</button>{% endif %}<select class="field-select" id="selDestination" onchange="saveField('destination',this)" onblur="hideFieldSelect('destination')"></select></span></div>
+          <div class="info-row"><span class="info-label">{{ t.trip_detail_visit_reason }}</span><span class="info-val" id="valVisitReason"><span class="editable-val" onclick="showFieldSelect('visit_reason')">{{ trip.visit_reason or '--' }}</span>{% if trip.visit_reason %} <button class="btn-clear-addr" onclick="clearField('visit_reason','{{ t.trip_detail_visit_reason }}')" title="{{ t.trip_detail_delete_visit_reason }}">&times;</button>{% endif %}<select class="field-select" id="selVisitReason" onchange="saveField('visit_reason',this)" onblur="hideFieldSelect('visit_reason')"></select></span></div>
+          <div class="info-row">
+            <span class="info-label">{{ t.common_note }}</span>
+            <span class="info-val" style="flex:1;margin-left:1rem">
+              <input class="note-input" id="noteInput" value="{{ trip.note or '' }}" placeholder="--" onchange="saveNote()">
+            </span>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:1rem">
+          <h2>{{ t.trip_detail_actions }}</h2>
+          <p style="font-size:0.8rem;color:#8b949e;margin-bottom:0.5rem">{{ t.trip_detail_retag_desc }}</p>
+          <button class="btn-retag" onclick="retagTrip()">{{ t.trip_detail_retag }}</button>
+        </div>
+
+        <div class="card">
+          <h2 style="color:#da3633">{{ t.trip_detail_danger_zone }}</h2>
+          <p style="font-size:0.8rem;color:#8b949e;margin-bottom:0.5rem">{{ t.trip_detail_delete_desc }}</p>
+          <button class="btn-delete" onclick="deleteTrip()">{{ t.trip_detail_delete_trip }}</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <script>
+    const TRIP_ID = {{ trip.id }};
+    const T0 = '{{ trip.start_time }}';
+    const T1 = '{{ trip.end_time }}';
+
+    function parseLocal(s) {
+      const n = s.trim().replace(' ', 'T').replace(/\+00:00$/, '').replace(/Z$/, '');
+      return new Date(n);
+    }
+
+    // Time display
+    (function() {
+      const d0 = parseLocal(T0);
+      const d1 = parseLocal(T1);
+      const date = d0.toLocaleDateString('{{ current_lang|lower }}', {year:'numeric', month:'2-digit', day:'2-digit'});
+      const t0s = d0.toLocaleTimeString('{{ current_lang|lower }}', {hour:'2-digit', minute:'2-digit', hour12:false});
+      const t1s = d1.toLocaleTimeString('{{ current_lang|lower }}', {hour:'2-digit', minute:'2-digit', hour12:false});
+      const infoDate = document.getElementById('infoDate');
+      const infoTime = document.getElementById('infoTime');
+      if (infoDate) infoDate.textContent = date;
+      if (infoTime) infoTime.textContent = t0s + ' – ' + t1s;
+      document.title = 'ID·Mate — {{ t.trip_detail_trip }} ' + date;
+    })();
+
+    const SLAT = {{ trip.start_lat or 'null' }};
+    const SLON = {{ trip.start_lon or 'null' }};
+    const ELAT = {{ trip.end_lat or 'null' }};
+    const ELON = {{ trip.end_lon or 'null' }};
+
+    // Duration
+    (function() {
+      const d0 = parseLocal(T0), d1 = parseLocal(T1);
+      const diff = Math.round((d1 - d0) / 1000);
+      const h = Math.floor(diff / 3600);
+      const m = Math.floor((diff % 3600) / 60);
+      document.getElementById('duration').textContent = h > 0 ? `${h}h ${m}min` : `${m} min`;
+    })();
+
+    // ── Menu ──
+    function toggleMenu() {
+      document.getElementById('menu').classList.toggle('open');
+      document.getElementById('menuOverlay').classList.toggle('open');
+    }
+    // ── Map ──
+    let tripMapInstance = null;
+    let chartHoverMarker = null;
+    const mapEl = document.getElementById('tripMap');
+    if (mapEl) {
+      const map = L.map('tripMap', { zoomControl: true, attributionControl: false });
+      tripMapInstance = map;
+      L.tileLayer('{{ map_tile_url }}', { maxZoom: 17 }).addTo(map);
+
+      fetch(`/api/trips/${TRIP_ID}/route`).then(r => r.json()).then(rd => {
+        const LOC_ICONS = {
+          pin:      { path: 'M12,2C8.13,2,5,5.13,5,9c0,5.25,7,13,7,13s7-7.75,7-13C19,5.13,15.87,2,12,2z M12,11.5c-1.38,0-2.5-1.12-2.5-2.5s1.12-2.5,2.5-2.5s2.5,1.12,2.5,2.5S13.38,11.5,12,11.5z' },
+          office:   { path: 'M12,7V3H2v18h20V7H12z M6,19H4v-2h2V19z M6,15H4v-2h2V15z M6,11H4V9h2V11z M6,7H4V5h2V7z M10,19H8v-2h2V19z M10,15H8v-2h2V15z M10,11H8V9h2V11z M10,7H8V5h2V7z M20,19h-8v-2h2v-2h-2v-2h2v-2h-2V9h8V19z M18,11h-2v2h2V11z M18,15h-2v2h2V15z' },
+          home:     { path: 'M10,20v-6h4v6h5v-8h3L12,3L2,12h3v8H10z' },
+          wrench:   { path: 'M22.7,19l-9.1-9.1c0.9-2.3,0.4-5-1.5-6.9c-2-2-5-2.4-7.4-1.3L9,6L6,9L1.6,4.7C0.4,7.1,0.9,10.1,2.9,12.1c1.9,1.9,4.6,2.4,6.9,1.5l9.1,9.1c0.4,0.4,1,0.4,1.4,0l2.3-2.3C23.1,20,23.1,19.3,22.7,19z' },
+          bolt:     { path: 'M11,21h-1l1-7H7.5c-0.88,0-0.33-0.75-0.31-0.78C8.48,10.94,10.42,7.54,13.01,3h1l-1,7h3.51c0.4,0,0.62,0.19,0.4,0.66C12.97,17.55,11,21,11,21z' },
+          shopping: { path: 'M7,18c-1.1,0-1.99,0.9-1.99,2S5.9,22,7,22s2-0.9,2-2S8.1,18,7,18z M1,2v2h2l3.6,7.59L5.25,14.04C5.09,14.32,5,14.65,5,15c0,1.1,0.9,2,2,2h12v-2H7.42c-0.14,0-0.25-0.11-0.25-0.25l0.03-0.12L8.1,13h7.45c0.75,0,1.41-0.41,1.75-1.03l3.58-6.49C21.25,4.82,20.76,4,20.01,4H5.21l-0.94-2H1z M17,18c-1.1,0-1.99,0.9-1.99,2s0.89,2,1.99,2s2-0.9,2-2S18.1,18,17,18z' },
+          tree:     { path: 'M12,2L4.5,20h3l1-3h7l1,3h3L12,2z M10.25,14L12,6.5L13.75,14H10.25z' },
+          fuel:     { path: 'M19.77,7.23l0.01-0.01l-3.72-3.72L15,4.56l2.11,2.11C16.17,7.03,15.5,7.84,15.5,8.82c0,1.24,1.01,2.25,2.25,2.25c0.25,0,0.49-0.04,0.72-0.12V17.5c0,0.55-0.45,1-1,1s-1-0.45-1-1V13c0-1.1-0.9-2-2-2h-1V5c0-1.1-0.9-2-2-2H6C4.9,3,4,3.9,4,5v16h9v-7.5h1.5v5c0,1.38,1.12,2.5,2.5,2.5s2.5-1.12,2.5-2.5V9C19.5,8.31,19.22,7.68,18.77,7.23z M11.5,11H6V5h5.5V11z' },
+          star:     { path: 'M12,17.27L18.18,21l-1.64-7.03L22,9.24l-7.19-0.61L12,2L9.19,8.63L2,9.24l5.46,4.73L5.82,21L12,17.27z' },
+          person:   { path: 'M12,12c2.21,0,4-1.79,4-4s-1.79-4-4-4S8,5.79,8,8S9.79,12,12,12z M12,14c-2.67,0-8,1.34-8,4v2h16v-2C20,15.34,14.67,14,12,14z' },
+          cat:      { path: 'M12,8L10.67,8.09C9.81,7.07,7.4,4.5,5,4.5C5,4.5,3.03,7.8,4.62,10.63C4.22,11.44,4,12.31,4,13C4,14.64,4.5,15.84,5.5,16.7L5.5,19L8.5,19C9.5,19,10.03,18.38,10.5,18H13.5C13.97,18.38,14.5,19,15.5,19L18.5,19L18.5,16.7C19.5,15.84,20,14.64,20,13C20,12.31,19.78,11.44,19.38,10.63C20.97,7.8,19,4.5,19,4.5C16.6,4.5,14.19,7.07,13.33,8.09L12,8ZM9,11A1,1,0,0,1,10,12A1,1,0,0,1,9,13A1,1,0,0,1,8,12A1,1,0,0,1,9,11ZM15,11A1,1,0,0,1,16,12A1,1,0,0,1,15,13A1,1,0,0,1,14,12A1,1,0,0,1,15,11Z' },
+        };
+        function createLocIcon(iconName, bgColor, iconColor) {
+          const ico = LOC_ICONS[iconName] || LOC_ICONS.pin;
+          const bg = bgColor || '#58a6ff';
+          const fill = iconColor || 'white';
+          return L.divIcon({
+            className: '',
+            html: `<div class="map-icon-badge" style="background:${bg}">
+              <svg viewBox="0 0 24 24" width="15" height="15"><path d="${ico.path}" fill="${fill}"/></svg>
+            </div>`,
+            iconSize: [24, 24], iconAnchor: [12, 12], popupAnchor: [0, -12]
+          });
+        }
+
+        const clusterGroup = L.markerClusterGroup({
+          maxClusterRadius: 35,
+          spiderfyOnMaxZoom: true,
+          showCoverageOnHover: false,
+          zoomToBoundsOnClick: true,
+          iconCreateFunction: function(cluster) {
+            const children = cluster.getAllChildMarkers();
+            const count = children.length;
+            if (count <= 4) {
+              const cols = count <= 1 ? 'g1' : 'g2';
+              const icons = children.map(m => (m.options.icon.options.html || '')).join('');
+              const w = count <= 1 ? 24 : 51;
+              const h = count <= 2 ? 24 : 51;
+              return L.divIcon({ className: '', html: `<div class="cluster-grid ${cols}">${icons}</div>`, iconSize: [w, h], iconAnchor: [w/2, h/2] });
+            }
+            return L.divIcon({ className: '', html: `<div style="width:36px;height:36px;border-radius:8px;background:#e6edf3;color:#0d1117;font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.5);border:2px solid #58a6ff">${count}</div>`, iconSize: [36, 36], iconAnchor: [18, 18] });
+          }
+        });
+        map.addLayer(clusterGroup);
+
+        const route = rd.points || [];
+        let routePoints = route.length > 1 ? route : [];
+        if (!routePoints.length) {
+          if (SLAT && ELON) routePoints = [[SLAT, SLON], [ELAT, ELON]];
+          else if (SLAT) routePoints = [[SLAT, SLON]];
+          else if (ELAT) routePoints = [[ELAT, ELON]];
+        }
+
+        if (routePoints.length > 1) {
+          L.polyline(routePoints, { color: '#58a6ff', weight: 3.5, opacity: 0.9, lineJoin: 'round' }).addTo(map);
+        }
+
+        const geoLocs = rd.locations || [];
+        const startGeo = geoLocs.find(l => l.pos === 'start');
+        const endGeo = geoLocs.find(l => l.pos === 'end');
+
+        if (SLAT && SLON) {
+          if (startGeo) {
+            const ico = createLocIcon(startGeo.icon || 'pin', startGeo.color, startGeo.icon_color);
+            clusterGroup.addLayer(L.marker([SLAT, SLON], { icon: ico }).bindTooltip(startGeo.name, {permanent: false, direction: 'top'}));
+          } else {
+            L.circleMarker([SLAT, SLON], { radius: 7, color: '#58a6ff', fillColor: '#58a6ff', fillOpacity: 1, weight: 2 }).addTo(map);
+          }
+        }
+        if (ELAT && ELON) {
+          if (endGeo) {
+            const ico = createLocIcon(endGeo.icon || 'pin', endGeo.color, endGeo.icon_color);
+            clusterGroup.addLayer(L.marker([ELAT, ELON], { icon: ico }).bindTooltip(endGeo.name, {permanent: false, direction: 'top'}));
+          } else {
+            L.circleMarker([ELAT, ELON], { radius: 7, color: '#58a6ff', fillColor: '#0d1117', fillOpacity: 1, weight: 2.5 }).addTo(map);
+          }
+        }
+
+        const allPts = routePoints.length ? routePoints : (SLAT ? [[SLAT, SLON]] : [[ELAT, ELON]]);
+        if (allPts.length > 1) map.fitBounds(allPts, { padding: [30, 30] });
+        else map.setView(allPts[0], 14);
+
+        // Charge location badges for start/end
+        function _hav(la1, lo1, la2, lo2) {
+          const R = 6371000, dL = (la2-la1)*Math.PI/180, dO = (lo2-lo1)*Math.PI/180;
+          const a = Math.sin(dL/2)**2 + Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dO/2)**2;
+          return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        }
+        fetch('/api/charge/locations').then(r => r.json()).then(cls => {
+          const checkPts = [];
+          if (SLAT && SLON) checkPts.push([SLAT, SLON]);
+          if (ELAT && ELON && !(ELAT===SLAT && ELON===SLON)) checkPts.push([ELAT, ELON]);
+          const shown = new Set();
+          for (const cl of cls) {
+            if (shown.has(cl.id)) continue;
+            let clat = cl.lat, clon = cl.lon;
+            if (cl.shape === 'rect' && cl.lat2 && cl.lon2) { clat = (cl.lat+cl.lat2)/2; clon = (cl.lon+cl.lon2)/2; }
+            for (const [pLat, pLon] of checkPts) {
+              let hit = false;
+              if (cl.shape === 'rect' && cl.lat2 && cl.lon2) {
+                hit = pLat >= Math.min(cl.lat,cl.lat2) && pLat <= Math.max(cl.lat,cl.lat2)
+                   && pLon >= Math.min(cl.lon,cl.lon2) && pLon <= Math.max(cl.lon,cl.lon2);
+              } else {
+                hit = _hav(pLat, pLon, cl.lat, cl.lon) <= (cl.radius_m || 200);
+              }
+              if (hit) {
+                const color = cl.op_color || cl.color || '#8b949e';
+                const inner = cl.icon_url
+                  ? `<img src="${cl.icon_url}" style="width:12px;height:12px;display:block;object-fit:contain">`
+                  : `<svg viewBox="0 0 24 24" width="10" height="10"><path d="M11,21h-1l1-7H7.5c-0.88,0-0.33-0.75-0.31-0.78C8.48,10.94,10.42,7.54,13.01,3h1l-1,7h3.51c0.4,0,0.62,0.19,0.4,0.66C12.97,17.55,11,21,11,21z" fill="white"/></svg>`;
+                const ico = L.divIcon({ className: '', html: `<div class="map-icon-badge" style="background:${color};width:15px;height:15px;border-radius:4px">${inner}</div>`, iconSize:[15,15], iconAnchor:[7,7] });
+                clusterGroup.addLayer(L.marker([clat, clon], { icon: ico }).bindTooltip(cl.op_name || cl.name, { permanent: false, direction: 'top' }));
+                shown.add(cl.id);
+                break;
+              }
+            }
+          }
+        });
+      });
+    }
+
+    // ── Chart ──
+    fetch(`/api/trips/${TRIP_ID}/chart-data`).then(r => r.json()).then(d => {
+      document.getElementById('chartLoading').style.display = 'none';
+      if (!d.labels || !d.labels.length) {
+        document.getElementById('chartLoading').style.display = '';
+        document.getElementById('chartLoading').textContent = '{{ t.trip_detail_no_telemetry }}';
+        return;
+      }
+
+      // Thin out labels for readability (show every Nth)
+      const step = Math.max(1, Math.floor(d.labels.length / 20));
+      const thinLabels = d.labels.map((l, i) => i % step === 0 ? l.slice(0, 5) : '');
+
+      const datasets = [];
+      if (d.speed.some(v => v != null))
+        datasets.push({ label: 'Speed (km/h)', data: d.speed, borderColor: '#58a6ff', borderWidth: 1.5, pointRadius: 0, yAxisID: 'y', tension: 0.2 });
+      if (d.power.some(v => v != null))
+        datasets.push({ label: 'Power (kW)', data: d.power, borderColor: '#f0883e', borderWidth: 1.5, pointRadius: 0, yAxisID: 'y', tension: 0.2 });
+      if (d.soc.some(v => v != null))
+        datasets.push({ label: 'SoC (%)', data: d.soc, borderColor: '#3fb950', borderWidth: 1.5, pointRadius: 0, yAxisID: 'y2', tension: 0.2 });
+      if (d.bat_temp && d.bat_temp.some(v => v != null))
+        datasets.push({ label: 'Batt Temp (\u00B0C)', data: d.bat_temp, borderColor: '#da3633', borderWidth: 1, pointRadius: 0, yAxisID: 'y2', tension: 0.2, hidden: true });
+      if (d.ext_temp && d.ext_temp.some(v => v != null))
+        datasets.push({ label: '{{ t.dash_ext_temp }} (\u00B0C)', data: d.ext_temp, borderColor: '#8b949e', borderWidth: 1, pointRadius: 0, yAxisID: 'y2', tension: 0.2, hidden: true });
+      if (d.elevation && d.elevation.some(v => v != null))
+        datasets.push({ label: 'Elevation (m)', data: d.elevation, borderColor: '#bc8cff', borderWidth: 1, pointRadius: 0, yAxisID: 'y2', tension: 0.2, hidden: true });
+      if (d.odometer && d.odometer.some(v => v != null))
+        datasets.push({ label: 'Odometer (km)', data: d.odometer, borderColor: '#79c0ff', borderWidth: 1, pointRadius: 0, yAxisID: 'y3', tension: 0.2, hidden: true });
+
+      // Update odometer display with InfluxDB values if DB values missing
+      if (d.odometer && d.odometer.some(v => v != null)) {
+        const odoVals = d.odometer.filter(v => v != null);
+        if (odoVals.length) {
+          const odoEl = document.getElementById('odoVal');
+          const influxStart = Math.round(odoVals[0]);
+          const influxEnd = Math.round(odoVals[odoVals.length - 1]);
+          const dbText = odoEl.textContent;
+          if (dbText.includes('?')) {
+            odoEl.innerHTML = `${influxStart} &rarr; ${influxEnd} km <small style="color:#8b949e">(InfluxDB)</small>`;
+          }
+        }
+      }
+
+      // Always show rotating arrow for trip hover (historic data)
+      function makeArrowIcon(heading, speed) {
+        const svg = `<svg viewBox="0 0 32 32" width="32" height="32" style="transform:rotate(${heading || 0}deg);filter:drop-shadow(0 0 4px rgba(88,166,255,.5))">
+              <polygon points="16,4 24,26 16,20 8,26" fill="#58a6ff" stroke="#0d1117" stroke-width="1.5"/>
+             </svg>`;
+        return L.divIcon({ className: '', html: svg, iconSize: [32, 32], iconAnchor: [16, 16] });
+      }
+
+      new Chart(document.getElementById('tripChart'), {
+        type: 'line',
+        data: { labels: thinLabels, datasets },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          onHover: function(evt, elements) {
+            if (!tripMapInstance) return;
+            if (elements && elements.length) {
+              const i = elements[0].index;
+              const la = d.lat && d.lat[i];
+              const lo = d.lon && d.lon[i];
+              if (la != null && lo != null) {
+                const hd = d.heading && d.heading[i];
+                const sp = d.speed && d.speed[i];
+                const icon = makeArrowIcon(hd, sp);
+                if (!chartHoverMarker) {
+                  chartHoverMarker = L.marker([la, lo], { icon, interactive: false }).addTo(tripMapInstance);
+                } else {
+                  chartHoverMarker.setLatLng([la, lo]);
+                  chartHoverMarker.setIcon(icon);
+                }
+              }
+            } else if (chartHoverMarker) {
+              tripMapInstance.removeLayer(chartHoverMarker);
+              chartHoverMarker = null;
+            }
+          },
+          plugins: {
+            legend: { labels: { color: '#8b949e', boxWidth: 12, font: { size: 11 } } },
+            tooltip: {
+              callbacks: {
+                title: function(items) { return d.labels[items[0].dataIndex]; },
+                afterBody: function(items) {
+                  const i = items[0].dataIndex;
+                  const lines = [];
+                  if (d.lte && d.lte[i] != null) {
+                    const v = d.lte[i];
+                    const bars = v <= 4 ? 0 : v <= 9 ? 1 : v <= 14 ? 2 : v <= 19 ? 3 : 4;
+                    lines.push(`LTE: ${bars}/4${d.carrier && d.carrier[i] ? ' · ' + d.carrier[i] : ''}`);
+                  } else if (d.carrier && d.carrier[i]) {
+                    lines.push(`Carrier: ${d.carrier[i]}`);
+                  }
+                  if (d.lat && d.lat[i] != null && d.lon && d.lon[i] != null) {
+                    lines.push(`GPS: ${d.lat[i].toFixed(5)}, ${d.lon[i].toFixed(5)}`);
+                  }
+                  return lines;
+                }
+              }
+            }
+          },
+          scales: {
+            x: { ticks: { color: '#484f58', font: { size: 10 }, maxRotation: 0 }, grid: { color: '#21262d' } },
+            y: { position: 'left', ticks: { color: '#58a6ff', font: { size: 10 } }, grid: { color: '#21262d' },
+                 title: { display: true, text: 'km/h / kW', color: '#484f58', font: { size: 10 } } },
+            y2: { position: 'right', ticks: { color: '#3fb950', font: { size: 10 } }, grid: { drawOnChartArea: false },
+                  title: { display: true, text: '% / \u00B0C / m', color: '#484f58', font: { size: 10 } } },
+            y3: { display: false, position: 'right', grid: { drawOnChartArea: false },
+                  afterDataLimits: function(axis) { const pad = (axis.max - axis.min) * 0.05 || 1; axis.min -= pad; axis.max += pad; } }
+          }
+        }
+      });
+    });
+
+    // ── Geofence prompt ──
+    function promptGeofence(lat, lon, label) {
+      document.getElementById('geoCoordText').textContent = `${label}: ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+      document.getElementById('geoConfirmBtn').onclick = function() {
+        window.location.href = `/admin?tab=locations&lat=${lat}&lon=${lon}`;
+      };
+      document.getElementById('geoPrompt').classList.add('open');
+      document.getElementById('geoOverlay').classList.add('open');
+    }
+
+    function closeGeoPrompt() {
+      document.getElementById('geoPrompt').classList.remove('open');
+      document.getElementById('geoOverlay').classList.remove('open');
+    }
+
+    // ── Save note ──
+    async function saveNote() {
+      await fetch(`/api/trips/${TRIP_ID}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note: document.getElementById('noteInput').value })
+      });
+    }
+
+    // ── Editable dropdowns for purpose/destination/visit_reason ──
+    let fieldOptions = null;  // cached options from API
+    const selIds = { purpose: 'selPurpose', destination: 'selDestination', visit_reason: 'selVisitReason' };
+
+    async function loadFieldOptions() {
+      if (fieldOptions) return fieldOptions;
+      const res = await fetch('/api/admin/values');
+      fieldOptions = await res.json();
+      return fieldOptions;
+    }
+
+    async function showFieldSelect(field) {
+      const opts = await loadFieldOptions();
+      const selEl = document.getElementById(selIds[field]);
+      let items = [];
+      if (field === 'purpose') items = (opts.purposes || []).map(p => p.name || p);
+      else if (field === 'destination') items = (opts.destinations || []).map(d => d.name || d);
+      else if (field === 'visit_reason') items = (opts.visit_reasons || []).map(r => r.name || r);
+
+      const valEl = selEl.parentElement.querySelector('.editable-val');
+      const current = valEl.textContent.trim();
+      selEl.innerHTML = '<option value="">{{ t.common_select }}</option>' +
+        items.map(v => `<option value="${v}"${v === current ? ' selected' : ''}>${v}</option>`).join('');
+      valEl.style.display = 'none';
+      const clearBtn = selEl.parentElement.querySelector('.btn-clear-addr');
+      if (clearBtn) clearBtn.style.display = 'none';
+      selEl.classList.add('open');
+      selEl.focus();
+    }
+
+    function hideFieldSelect(field) {
+      const selEl = document.getElementById(selIds[field]);
+      setTimeout(() => {
+        selEl.classList.remove('open');
+        const valEl = selEl.parentElement.querySelector('.editable-val');
+        valEl.style.display = '';
+        const clearBtn = selEl.parentElement.querySelector('.btn-clear-addr');
+        if (clearBtn) clearBtn.style.display = '';
+      }, 150);
+    }
+
+    async function saveField(field, selEl) {
+      const val = selEl.value;
+      if (!val) { hideFieldSelect(field); return; }
+      const res = await fetch(`/api/trips/${TRIP_ID}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [field]: val })
+      });
+      if (res.ok) {
+        const valSpan = selEl.parentElement.querySelector('.editable-val');
+        valSpan.textContent = val;
+        // Add clear button if not present
+        let clearBtn = selEl.parentElement.querySelector('.btn-clear-addr');
+        if (!clearBtn) {
+          const labels = { purpose: '{{ t.trip_detail_purpose }}', destination: '{{ t.trip_detail_trip_destination }}', visit_reason: '{{ t.trip_detail_visit_reason }}' };
+          clearBtn = document.createElement('button');
+          clearBtn.className = 'btn-clear-addr';
+          clearBtn.title = labels[field];
+          clearBtn.textContent = '×';
+          clearBtn.onclick = () => clearField(field, labels[field]);
+          selEl.parentElement.insertBefore(clearBtn, selEl);
+        }
+        selEl.classList.remove('open');
+        valSpan.style.display = '';
+        clearBtn.style.display = '';
+      }
+    }
+
+    // ── Clear field (purpose/destination/visit_reason) ──
+    async function clearField(field, label) {
+      if (!confirm('{{ t.trip_detail_confirm_clear }}'.replace('{0}', label))) return;
+      const res = await fetch(`/api/trips/${TRIP_ID}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [field]: '' })
+      });
+      if (res.ok) {
+        const idMap = { purpose: 'valPurpose', destination: 'valDestination', visit_reason: 'valVisitReason' };
+        document.getElementById(idMap[field]).textContent = '--';
+      }
+    }
+
+    // ── Clear address ──
+    async function clearAddress(which) {
+      if (!confirm('{{ t.trip_detail_confirm_clear_addr }}'.replace('{0}', which === 'start' ? '{{ t.trip_detail_start }}' : '{{ t.trip_detail_destination }}'))) return;
+      const res = await fetch(`/api/trips/${TRIP_ID}/clear-address`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ which })
+      });
+      if (res.ok) {
+        const el = document.getElementById(which === 'start' ? 'startAddr' : 'endAddr');
+        el.textContent = '--';
+      }
+    }
+
+    // ── Retag trip ──
+    async function retagTrip() {
+      const res = await fetch(`/api/trips/${TRIP_ID}/retag`, { method: 'POST' });
+      if (res.ok) {
+        const d = await res.json();
+        document.getElementById('valPurpose').innerHTML = `<span class="editable-val" onclick="showFieldSelect('purpose')">${d.purpose || '--'}</span>${d.purpose ? ' <button class="btn-clear-addr" onclick="clearField(\'purpose\',\'{{ t.trip_detail_purpose }}\')" title="{{ t.trip_detail_delete_purpose }}">&times;</button>' : ''}<select class="field-select" id="selPurpose" onchange="saveField('purpose',this)" onblur="hideFieldSelect('purpose')"></select>`;
+        document.getElementById('valDestination').innerHTML = `<span class="editable-val" onclick="showFieldSelect('destination')">${d.destination || '--'}</span>${d.destination ? ' <button class="btn-clear-addr" onclick="clearField(\'destination\',\'{{ t.trip_detail_trip_destination }}\')" title="{{ t.trip_detail_delete_destination }}">&times;</button>' : ''}<select class="field-select" id="selDestination" onchange="saveField('destination',this)" onblur="hideFieldSelect('destination')"></select>`;
+        document.getElementById('valVisitReason').innerHTML = `<span class="editable-val" onclick="showFieldSelect('visit_reason')">${d.visit_reason || '--'}</span>${d.visit_reason ? ' <button class="btn-clear-addr" onclick="clearField(\'visit_reason\',\'{{ t.trip_detail_visit_reason }}\')" title="{{ t.trip_detail_delete_visit_reason }}">&times;</button>' : ''}<select class="field-select" id="selVisitReason" onchange="saveField('visit_reason',this)" onblur="hideFieldSelect('visit_reason')"></select>`;
+      }
+    }
+
+    // ── Delete trip ──
+    async function deleteTrip() {
+      if (!confirm('{{ t.trip_detail_confirm_delete }}')) return;
+      await fetch(`/api/trips/${TRIP_ID}`, { method: 'DELETE' });
+      window.location.href = '/trips';
+    }
+  </script>
+<footer style="text-align:center;padding:1.5rem 0 0.8rem;font-size:0.7rem;color:#484f58"><a href="https://github.com/TheInGoF/IDMate-dev" target="_blank" style="color:#484f58;text-decoration:none">&copy; 2025–2026 ID·Mate &middot; AGPL v3 &middot; v{{ version }}</a></footer>
+
+  <script>
+  (function(){
+    const ACTIVE_ID = {{ (active_vehicle.id if active_vehicle else 'null') | tojson }};
+    async function initVehPicker() {
+      const picker = document.getElementById('vehPicker');
+      if (!picker) return;
+      const res = await fetch('/api/vehicles');
+      const vehicles = await res.json();
+      if (vehicles.length <= 1) { picker.style.cursor = 'default'; return; }
+      document.getElementById('vehDropdown').innerHTML = vehicles.map(v =>
+        `<div class="veh-opt ${v.id === ACTIVE_ID ? 'active' : ''}" onclick="switchVehicle(${v.id},event)">${v.name || v.plate}</div>`
+      ).join('');
+    }
+    window.toggleVehPicker = function(e) {
+      e.stopPropagation();
+      document.getElementById('vehPicker').classList.toggle('open');
+    };
+    window.switchVehicle = async function(id, e) {
+      e.stopPropagation();
+      await fetch('/api/user/active-vehicle', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({vehicle_id:id})});
+      location.reload();
+    };
+    document.addEventListener('click', () => {
+      const p = document.getElementById('vehPicker');
+      if (p) p.classList.remove('open');
+    });
+    initVehPicker();
+  })();
+  </script>
+</body>
+</html>

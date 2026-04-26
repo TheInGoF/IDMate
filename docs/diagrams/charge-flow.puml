@@ -1,0 +1,27 @@
+@startuml charge-flow
+!theme plain
+skinparam backgroundColor #0E1B2C
+skinparam defaultFontColor #E8EEF7
+skinparam defaultFontName Helvetica
+skinparam sequenceArrowColor #1DE9B6
+skinparam sequenceLifeLineBorderColor #1DE9B6
+skinparam sequenceParticipantBackgroundColor #14253A
+skinparam sequenceParticipantBorderColor #1DE9B6
+skinparam sequenceParticipantFontColor #E8EEF7
+skinparam sequenceActorBackgroundColor #14253A
+skinparam sequenceActorBorderColor #1DE9B6
+
+title ID·Mate — Charge Tracker Flow (every 15 min)
+
+participant "MID Meter\n(Wallbox)" as MID
+participant "Home Assistant" as HA
+participant "Triplog\n(/api/charge/reading)" as T
+database "SQLite" as DB
+
+MID -> HA : Modbus/TCP\n(energy, meter start/end)
+HA -> HA : sensor.wallbox_energy_15m\nsensor.tibber_price\nsensor.vehicle_odometer
+HA -> T : POST JSON\n(timestamp, vehicle, kwh, ...)
+T -> T : session detection\n(vehicle + odometer)
+T -> DB : insert reading\n+ update session
+
+@enduml

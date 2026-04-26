@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="{{ current_lang|lower }}">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'><rect width='128' height='128' rx='28' fill='%230E1B2C'/><circle cx='38' cy='34' r='6' fill='%231DE9B6'/><rect x='32' y='46' width='12' height='56' rx='3' fill='%23E8EEF7'/><rect x='56' y='34' width='44' height='68' rx='10' fill='none' stroke='%23E8EEF7' stroke-width='6'/><rect x='72' y='26' width='12' height='10' rx='2' fill='%23E8EEF7'/><rect x='64' y='58' width='28' height='36' rx='4' fill='%231DE9B6'/><path d='M80 62 l-10 16 h8 l-4 12 14 -18 h-8 z' fill='%230E1B2C'/></svg>">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#0d1117">
+  <title>ID·Mate</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%;overflow:hidden}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d1117;color:#e6edf3;-webkit-user-select:none}
+
+    /* Header */
+    .hdr{display:flex;align-items:center;padding:0.5rem 1rem;border-bottom:1px solid #21262d;height:45px;max-width:1200px;margin:0 auto;position:sticky;top:0;z-index:1100;background:#0d1117}
+    .leaflet-top,.leaflet-bottom{z-index:500!important}
+    .hdr h1{font-size:1rem;font-weight:600;flex:1;margin:0}
+    
+    /* Vehicle Picker */
+    .veh-picker{position:relative;display:flex;align-items:center;gap:0.3rem;padding:0.2rem 0.5rem;border-radius:6px;cursor:pointer;color:#8b949e;font-size:0.8rem;user-select:none;border:1px solid transparent;transition:border-color .15s,background .15s}
+    .veh-picker:hover{background:#161b22;border-color:#30363d;color:#e6edf3}
+    .veh-chevron{opacity:0.5;transition:transform .2s;flex-shrink:0}
+    .veh-picker.open .veh-chevron{transform:rotate(180deg)}
+    .veh-dropdown{display:none;position:absolute;top:calc(100% + 4px);right:0;min-width:150px;background:#161b22;border:1px solid #30363d;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:500;overflow:hidden}
+    .veh-picker.open .veh-dropdown{display:block}
+    .veh-opt{padding:0.5rem 0.8rem;font-size:0.8rem;color:#8b949e;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:0.5rem}
+    .veh-opt:hover{background:#21262d;color:#e6edf3}
+    .veh-opt.active{color:#58a6ff}
+    .veh-opt::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:transparent;flex-shrink:0}
+    .veh-opt.active::before{background:#58a6ff}
+
+    .burger{background:none;border:none;color:#8b949e;font-size:1.4rem;cursor:pointer;padding:0.2rem 0.4rem;line-height:1}
+    .burger:hover{color:#e6edf3}
+
+    /* Burger Menu */
+    .menu-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000}
+    .menu-overlay.open{display:block}
+    .menu{position:fixed;top:0;right:-260px;width:260px;height:100%;background:#161b22;border-left:1px solid #30363d;z-index:10001;transition:right .25s ease;padding:1rem 0}
+    .menu.open{right:0}
+    .menu a{display:block;padding:0.8rem 1.2rem;color:#e6edf3;text-decoration:none;font-size:0.95rem;border-bottom:1px solid #21262d}
+    .menu a:hover{background:#21262d}
+    .menu .close-btn{text-align:right;padding:0.4rem 1rem;color:#8b949e;cursor:pointer;font-size:1.2rem}
+
+    /* Main layout — height adapts to stats column, map fills remaining space */
+    .main{display:flex;gap:0;max-height:calc(100vh - 45px);max-width:1200px;margin:0 auto;align-items:stretch}
+    .map-col{flex:0 0 60%;min-width:0;display:flex;flex-direction:column}
+    .stats-col{flex:0 0 40%;padding:0.8rem;overflow-y:auto;border-left:1px solid #21262d;max-height:calc(100vh - 45px)}
+
+    /* Map fills the map-col completely */
+    #map{width:100%;flex:1}
+
+    /* Heading arrow marker */
+    .arrow-icon{width:32px;height:32px}
+    .arrow-icon svg{filter:drop-shadow(0 0 4px rgba(88,166,255,.5))}
+
+    /* Marker icon wrapper */
+    .map-icon-badge{width:24px;height:24px;border-radius:5px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.7);overflow:hidden}
+
+    /* Cluster grid (up to 4 icons) */
+    .cluster-grid{display:grid;gap:3px}
+    .cluster-grid.g1{grid-template-columns:1fr}
+    .cluster-grid.g2{grid-template-columns:auto auto}
+    .cluster-grid.g3{grid-template-columns:auto auto;grid-template-rows:auto auto}
+    .cluster-grid.g4{grid-template-columns:auto auto;grid-template-rows:auto auto}
+    .cluster-count{width:36px;height:36px;border-radius:8px;background:#e6edf3;color:#0d1117;font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.5);border:2px solid #58a6ff}
+
+    /* Stats */
+
+    .stat-big{margin-bottom:0.8rem}
+    .stat-big .label{font-size:0.65rem;color:#484f58;text-transform:uppercase;letter-spacing:0.04em}
+    .stat-big .value{font-size:2rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+    .stat-big .unit{font-size:0.85rem;color:#8b949e;margin-left:0.2rem}
+
+    .soc-bar{width:100%;height:6px;background:#21262d;border-radius:3px;overflow:hidden;margin:0.3rem 0 0.8rem}
+    .soc-fill{height:100%;border-radius:3px;transition:width 1s ease, opacity 1.5s ease}
+    .soc-bar-row{display:flex;align-items:center;gap:0.35rem;margin:0.3rem 0 0.8rem}
+    .soc-bar-row .soc-bar{flex:1;margin:0}
+
+    .stat-row{display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid #161b22}
+    .stat-row .label{font-size:0.8rem;color:#8b949e}
+    .stat-row .value{font-size:0.85rem;font-weight:600;font-variant-numeric:tabular-nums}
+
+    .sep{border:0;border-top:1px solid #21262d;margin:0.6rem 0}
+
+    /* Status dot */
+    .status{display:flex;align-items:center;gap:0.4rem;margin-bottom:0.6rem}
+    .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+    .dot-g{background:#3fb950;box-shadow:0 0 6px #3fb95066}
+    .dot-b{background:#58a6ff;box-shadow:0 0 6px #58a6ff66}
+    .dot-y{background:#d29922;box-shadow:0 0 6px #d2992266}
+    .dot-x{background:#484f58}
+    .st-txt{font-size:0.85rem;font-weight:600}
+
+    .ago{font-size:0.6rem;color:#484f58;margin-top:0.4rem}
+    .field-age{font-size:0.6rem;color:#484f58;margin-left:0.2rem}
+
+    /* Map minimum */
+    .map-col{min-height:200px}
+    #map{min-height:200px;max-height:calc(100vh - 45px)}
+
+    /* Mobile Footer */
+    .mob-footer{display:flex;align-items:center;justify-content:center;height:28px;font-size:0.65rem;color:#30363d;flex-shrink:0}
+
+    /* Responsive: smartphone — stats get natural height, map fills remaining space */
+    @media(max-width:700px){
+      html,body{overflow:hidden;height:100%}
+      .main{flex-direction:column;height:calc(100dvh - 45px - 28px - env(safe-area-inset-bottom,0px));max-height:none;overflow:hidden}
+      /* Map: takes remaining space, minimum 120px */
+      .map-col{flex:1 1 120px;min-height:120px;display:flex;flex-direction:column}
+      #map{height:100%;max-height:none;min-height:0;flex:1}
+      /* Stats: natural height, no shrinking — scrollable on overflow */
+      .stats-col{flex:0 0 auto;max-height:60%;overflow-y:auto;border-left:none;border-top:1px solid #21262d;padding:0.6rem 0.8rem}
+      .mob-footer{padding-bottom:env(safe-area-inset-bottom,0px)}
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="hdr">
+    <h1><span style="color:#58a6ff;text-shadow:0 0 8px rgba(88,166,255,0.4)">ID·Mate</span> — {{ t.dash_title }}</h1>
+    {% if active_vehicle %}
+    <div class="veh-picker" id="vehPicker" onclick="toggleVehPicker(event)">
+      <span id="vehPickerLabel">{{ vehicle_name }}</span>
+      <svg class="veh-chevron" viewBox="0 0 10 6" width="10" height="6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div class="veh-dropdown" id="vehDropdown"></div>
+    </div>
+    {% endif %}
+    <button class="burger" onclick="toggleMenu()">&#9776;</button>
+  </div>
+
+  <!-- Burger Menu -->
+  <div class="menu-overlay" id="menuOverlay" onclick="toggleMenu()"></div>
+  <div class="menu" id="menu">
+    <div class="close-btn" onclick="toggleMenu()">&times;</div>
+    <a href="/">{{ t.nav_dashboard }}</a>
+    <a href="/trips">{{ t.nav_trips }}</a>
+    <a href="/journeys">{{ t.nav_journeys }}</a>
+    <a href="/analysis">{{ t.nav_analysis }}</a>
+    <a href="/charges">{{ t.nav_charges }}</a>
+    <a href="/admin">{{ t.nav_admin }}</a>
+    <a href="/logout" style="color:#da3633;margin-top:1rem">{{ t.nav_logout }}</a>
+  </div>
+
+  <!-- Main content -->
+  <div class="main">
+    <!-- Map -->
+    <div class="map-col">
+      <div id="map"></div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-col">
+      <!-- SOC -->
+      <div class="stat-big">
+        <div class="label">{{ t.dash_soc }}</div>
+        <div><span class="value" id="soc">--</span><span class="unit">%</span></div>
+        <div class="soc-bar-row">
+          <div class="soc-bar"><div class="soc-fill" id="socBar" style="width:0%"></div></div>
+          <span class="field-age" id="ageSoc"></span>
+        </div>
+      </div>
+
+      <!-- Reichweite -->
+      <div class="stat-big">
+        <div class="label">{{ t.dash_range_calc }}</div>
+        <div><span class="value" id="calcRange">--</span><span class="unit">km</span></div>
+      </div>
+
+      <hr class="sep">
+
+
+      <div class="stat-row">
+        <span class="label">{{ t.dash_odometer }}</span>
+        <span class="value"><span id="odo">--</span> km <span class="field-age" id="ageOdo"></span></span>
+      </div>
+      <div class="stat-row">
+        <span class="label">{{ t.dash_consumption }}</span>
+        <span class="value"><span id="avgCons">--</span> kWh/100km</span>
+      </div>
+
+      <hr class="sep">
+
+      <div class="stat-row">
+        <span class="label">{{ t.dash_bat_temp }}</span>
+        <span class="value"><span id="batTemp">--</span> °C <span class="field-age" id="ageBatTemp"></span></span>
+      </div>
+      <div class="stat-row">
+        <span class="label">{{ t.dash_ext_temp }}</span>
+        <span class="value"><span id="extTemp">--</span> °C <span class="field-age" id="ageExtTemp"></span></span>
+      </div>
+      <div class="stat-row">
+        <span class="label">{{ t.dash_power }}</span>
+        <span class="value"><span id="power">--</span> kW <span class="field-age" id="agePower"></span></span>
+      </div>
+      <div class="stat-row">
+        <span class="label">{{ t.dash_speed }}</span>
+        <span class="value"><span id="speed">--</span> km/h <span class="field-age" id="ageSpeed"></span></span>
+      </div>
+
+      <hr class="sep">
+
+      <div class="stat-row">
+        <span class="label">{{ t.dash_esp_bat }}</span>
+        <span class="value"><span id="espBat">--</span> % <span class="field-age" id="ageEspBat"></span></span>
+      </div>
+      <div class="stat-row">
+        <span class="label">{{ t.dash_lte }}</span>
+        <span class="value"><span id="lte">--</span> <span class="field-age" id="ageLte"></span></span>
+      </div>
+
+      <div class="ago" id="ago"></div>
+    </div>
+  </div>
+
+  <div class="mob-footer"><a href="https://github.com/TheInGoF/IDMate-dev" target="_blank" style="color:#30363d;text-decoration:none">&copy; 2025–2026 ID·Mate &middot; AGPL v3 &middot; v{{ version }}</a></div>
+
+
+  <script src="https://unpkg.com/leaflet@1.9/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script>
+    // Burger menu
+    function toggleMenu(){
+      document.getElementById('menu').classList.toggle('open');
+      document.getElementById('menuOverlay').classList.toggle('open');
+    }
+
+    // Map
+    const map = L.map('map', {zoomControl: false, attributionControl: false}).setView([52.52, 13.40], 14);
+    L.tileLayer('{{ map_tile_url }}', {maxZoom: 19}).addTo(map);
+    // Re-render map when stats column height changes
+    if (window.ResizeObserver) {
+      new ResizeObserver(() => map.invalidateSize()).observe(document.querySelector('.stats-col'));
+    }
+
+    let marker = null;
+    let trailLine = null;
+    let locMarkers = [];
+    let chargeLocMarkers = [];
+
+    // ── Cluster Group ──
+    const clusterGroup = L.markerClusterGroup({
+      maxClusterRadius: 35,
+      spiderfyOnMaxZoom: true,
+      showCoverageOnHover: false,
+      zoomToBoundsOnClick: true,
+      iconCreateFunction: function(cluster) {
+        const children = cluster.getAllChildMarkers();
+        const count = children.length;
+        if (count <= 4) {
+          const cols = count <= 1 ? 'g1' : 'g2';
+          const icons = children.map(m => (m.options.icon.options.html || '')).join('');
+          const w = count <= 1 ? 24 : 51;
+          const h = count <= 2 ? 24 : 51;
+          return L.divIcon({
+            className: '',
+            html: `<div class="cluster-grid ${cols}">${icons}</div>`,
+            iconSize: [w, h],
+            iconAnchor: [w/2, h/2]
+          });
+        }
+        return L.divIcon({
+          className: '',
+          html: `<div class="cluster-count">${count}</div>`,
+          iconSize: [36, 36],
+          iconAnchor: [18, 18]
+        });
+      }
+    });
+    map.addLayer(clusterGroup);
+
+    // ── Location Icons (SVG) ──
+    const LOC_ICONS = {
+      pin:       { path: 'M12,2C8.13,2,5,5.13,5,9c0,5.25,7,13,7,13s7-7.75,7-13C19,5.13,15.87,2,12,2z M12,11.5c-1.38,0-2.5-1.12-2.5-2.5s1.12-2.5,2.5-2.5s2.5,1.12,2.5,2.5S13.38,11.5,12,11.5z', color: '#8b949e' },
+      office:    { path: 'M12,7V3H2v18h20V7H12z M6,19H4v-2h2V19z M6,15H4v-2h2V15z M6,11H4V9h2V11z M6,7H4V5h2V7z M10,19H8v-2h2V19z M10,15H8v-2h2V15z M10,11H8V9h2V11z M10,7H8V5h2V7z M20,19h-8v-2h2v-2h-2v-2h2v-2h-2V9h8V19z M18,11h-2v2h2V11z M18,15h-2v2h2V15z', color: '#d29922' },
+      home:      { path: 'M10,20v-6h4v6h5v-8h3L12,3L2,12h3v8H10z', color: '#3fb950' },
+      wrench:    { path: 'M22.7,19l-9.1-9.1c0.9-2.3,0.4-5-1.5-6.9c-2-2-5-2.4-7.4-1.3L9,6L6,9L1.6,4.7C0.4,7.1,0.9,10.1,2.9,12.1c1.9,1.9,4.6,2.4,6.9,1.5l9.1,9.1c0.4,0.4,1,0.4,1.4,0l2.3-2.3C23.1,20,23.1,19.3,22.7,19z', color: '#db6d28' },
+      bolt:      { path: 'M11,21h-1l1-7H7.5c-0.88,0-0.33-0.75-0.31-0.78C8.48,10.94,10.42,7.54,13.01,3h1l-1,7h3.51c0.4,0,0.62,0.19,0.4,0.66C12.97,17.55,11,21,11,21z', color: '#f0e68c' },
+      shopping:  { path: 'M7,18c-1.1,0-1.99,0.9-1.99,2S5.9,22,7,22s2-0.9,2-2S8.1,18,7,18z M1,2v2h2l3.6,7.59L5.25,14.04C5.09,14.32,5,14.65,5,15c0,1.1,0.9,2,2,2h12v-2H7.42c-0.14,0-0.25-0.11-0.25-0.25l0.03-0.12L8.1,13h7.45c0.75,0,1.41-0.41,1.75-1.03l3.58-6.49C21.25,4.82,20.76,4,20.01,4H5.21l-0.94-2H1z M17,18c-1.1,0-1.99,0.9-1.99,2s0.89,2,1.99,2s2-0.9,2-2S18.1,18,17,18z', color: '#58a6ff' },
+      tree:      { path: 'M12,2L4.5,20h3l1-3h7l1,3h3L12,2z M10.25,14L12,6.5L13.75,14H10.25z', color: '#3fb950' },
+      fuel:      { path: 'M19.77,7.23l0.01-0.01l-3.72-3.72L15,4.56l2.11,2.11C16.17,7.03,15.5,7.84,15.5,8.82c0,1.24,1.01,2.25,2.25,2.25c0.25,0,0.49-0.04,0.72-0.12V17.5c0,0.55-0.45,1-1,1s-1-0.45-1-1V13c0-1.1-0.9-2-2-2h-1V5c0-1.1-0.9-2-2-2H6C4.9,3,4,3.9,4,5v16h9v-7.5h1.5v5c0,1.38,1.12,2.5,2.5,2.5s2.5-1.12,2.5-2.5V9C19.5,8.31,19.22,7.68,18.77,7.23z M11.5,11H6V5h5.5V11z', color: '#d29922' },
+      star:      { path: 'M12,17.27L18.18,21l-1.64-7.03L22,9.24l-7.19-0.61L12,2L9.19,8.63L2,9.24l5.46,4.73L5.82,21L12,17.27z', color: '#f0e68c' },
+      person:    { path: 'M12,12c2.21,0,4-1.79,4-4s-1.79-4-4-4S8,5.79,8,8S9.79,12,12,12z M12,14c-2.67,0-8,1.34-8,4v2h16v-2C20,15.34,14.67,14,12,14z', color: '#bc8cff' },
+      cat:       { path: 'M12,8L10.67,8.09C9.81,7.07,7.4,4.5,5,4.5C5,4.5,3.03,7.8,4.62,10.63C4.22,11.44,4,12.31,4,13C4,14.64,4.5,15.84,5.5,16.7L5.5,19L8.5,19C9.5,19,10.03,18.38,10.5,18H13.5C13.97,18.38,14.5,19,15.5,19L18.5,19L18.5,16.7C19.5,15.84,20,14.64,20,13C20,12.31,19.78,11.44,19.38,10.63C20.97,7.8,19,4.5,19,4.5C16.6,4.5,14.19,7.07,13.33,8.09L12,8ZM9,11A1,1,0,0,1,10,12A1,1,0,0,1,9,13A1,1,0,0,1,8,12A1,1,0,0,1,9,11ZM15,11A1,1,0,0,1,16,12A1,1,0,0,1,15,13A1,1,0,0,1,14,12A1,1,0,0,1,15,11Z', color: '#bc8cff' },
+    };
+
+    function createLocIcon(iconName, bgColor, iconColor) {
+      const ico = LOC_ICONS[iconName] || LOC_ICONS.pin;
+      const bg = bgColor || '#58a6ff';
+      const fill = iconColor || 'white';
+      return L.divIcon({
+        className: '',
+        html: `<div class="map-icon-badge" style="background:${bg}">
+          <svg viewBox="0 0 24 24" width="15" height="15"><path d="${ico.path}" fill="${fill}"/></svg>
+        </div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+        popupAnchor: [0, -12]
+      });
+    }
+
+    function createArrowIcon(heading, speed) {
+      const moving = speed != null && speed >= 5;
+      const svg = moving
+        ? `<svg viewBox="0 0 32 32" width="32" height="32" style="transform:rotate(${heading || 0}deg)">
+            <polygon points="16,4 24,26 16,20 8,26" fill="#58a6ff" stroke="#0d1117" stroke-width="1.5"/>
+           </svg>`
+        : `<svg viewBox="0 0 32 32" width="32" height="32">
+            <circle cx="16" cy="16" r="10" fill="#58a6ff" stroke="#0d1117" stroke-width="1.5"/>
+           </svg>`;
+      return L.divIcon({
+        className: 'arrow-icon',
+        html: svg,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
+      });
+    }
+
+    // ── Location pins ──
+    async function loadLocations() {
+      const res = await fetch('/api/locations');
+      const locs = await res.json();
+
+      // Remove old markers
+      locMarkers.forEach(m => clusterGroup.removeLayer(m));
+      locMarkers = [];
+
+      locs.forEach(loc => {
+        const ico = createLocIcon(loc.icon || 'pin', loc.color, loc.icon_color);
+        const m = L.marker([loc.lat, loc.lon], { icon: ico });
+
+        const cat = loc.category ? `<div style="color:#8b949e;font-size:11px;margin-top:2px">${esc(loc.category)}</div>` : '';
+        const reason = loc.default_reason ? `<div style="color:#8b949e;font-size:11px">${esc(loc.default_reason)}</div>` : '';
+        m.bindPopup(`<div style="font-family:sans-serif;font-size:13px"><strong>${esc(loc.name)}</strong>${cat}${reason}</div>`, { maxWidth: 200 });
+
+        locMarkers.push(m);
+      });
+      clusterGroup.addLayers(locMarkers);
+    }
+
+    // ── Charge location pins ──
+    async function loadChargeLocations() {
+      const res = await fetch('/api/charge/locations');
+      const locs = await res.json();
+      chargeLocMarkers.forEach(m => clusterGroup.removeLayer(m));
+      chargeLocMarkers = [];
+      locs.forEach(loc => {
+        if (!loc.lat || !loc.lon) return;
+        const clat = (loc.shape === 'rect' && loc.lat2 != null) ? (loc.lat + loc.lat2) / 2 : loc.lat;
+        const clon = (loc.shape === 'rect' && loc.lon2 != null) ? (loc.lon + loc.lon2) / 2 : loc.lon;
+        const color = loc.op_color || loc.color || '#8b949e';
+        const inner = loc.icon_url
+          ? `<img src="${esc(loc.icon_url)}" style="width:12px;height:12px;display:block;object-fit:contain">`
+          : `<svg viewBox="0 0 24 24" width="10" height="10"><path d="M11,21h-1l1-7H7.5c-0.88,0-0.33-0.75-0.31-0.78C8.48,10.94,10.42,7.54,13.01,3h1l-1,7h3.51c0.4,0,0.62,0.19,0.4,0.66C12.97,17.55,11,21,11,21z" fill="white"/></svg>`;
+        const ico = L.divIcon({ className: '', html: `<div class="map-icon-badge" style="background:${color};width:15px;height:15px;border-radius:4px">${inner}</div>`, iconSize: [15, 15], iconAnchor: [7, 7] });
+        const m = L.marker([clat, clon], { icon: ico });
+        const sessions = loc.charge_count ? `<br><span style="color:#8b949e;font-size:11px">${loc.charge_count} Ladesession${loc.charge_count !== 1 ? 'en' : ''}</span>` : '';
+        m.bindPopup(`<div style="font-family:sans-serif;font-size:13px"><strong>${esc(loc.name)}</strong>${sessions}</div>`, { maxWidth: 200 });
+        chargeLocMarkers.push(m);
+      });
+      clusterGroup.addLayers(chargeLocMarkers);
+    }
+
+    function esc(s) {
+      if (!s) return '';
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    // ── Vehicle state ──
+    function socColor(s) {
+      return s >= 50 ? '#3fb950' : s >= 30 ? '#d29922' : s >= 15 ? '#db6d28' : '#f85149';
+    }
+
+    function fmt(v, d) {
+      return v != null ? (d ? v.toFixed(d) : Math.round(v)) : '--';
+    }
+
+    function fieldAge(ts) {
+      if (!ts) return '';
+      const mins = Math.round((Date.now() - new Date(ts).getTime()) / 60000);
+      if (mins < 2) return '';
+      if (mins < 60) return mins + 'm';
+      const h = Math.floor(mins / 60), m = mins % 60;
+      return h + 'h' + (m > 0 ? m + 'm' : '');
+    }
+
+    function setAge(id, ts) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = fieldAge(ts);
+    }
+
+    const T = {
+      dc: '{{ t.dash_status_dc }}',
+      ac: '{{ t.dash_status_ac }}',
+      driving: '{{ t.dash_status_driving }}',
+      parked: '{{ t.dash_status_parked }}',
+      offline: '{{ t.dash_status_offline }}',
+      standby: '{{ t.dash_status_standby }}',
+      just_now: '{{ t.dash_just_now }}',
+      ago: '{{ t.dash_ago }}'
+    };
+
+    // Returns null if the timestamp is older than maxMinutes
+    function staleVal(value, ts, maxMinutes) {
+      if (value == null) return null;
+      if (!ts) return value;
+      const age = (Date.now() - new Date(ts).getTime()) / 60000;
+      return age > maxMinutes ? null : value;
+    }
+
+    // Sets value and hides parent row if no value is present
+    function setVal(id, value, formatter, asHtml) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const row = el.closest('.stat-row, .stat-big');
+      if (value == null) {
+        if (row) row.style.display = 'none';
+        el.textContent = '--';
+      } else {
+        if (row) row.style.display = '';
+        const out = formatter ? formatter(value) : value;
+        if (asHtml) el.innerHTML = out; else el.textContent = out;
+      }
+    }
+
+    // Blendet <hr class="sep"> aus wenn alle stat-rows danach versteckt sind
+    function updateSeparators() {
+      document.querySelectorAll('.stats-col hr.sep').forEach(hr => {
+        let next = hr.nextElementSibling;
+        let anyVisible = false;
+        while (next && !next.matches('hr.sep')) {
+          if (next.matches('.stat-row, .stat-big') && next.style.display !== 'none') {
+            anyVisible = true; break;
+          }
+          next = next.nextElementSibling;
+        }
+        hr.style.display = anyVisible ? '' : 'none';
+      });
+    }
+
+    function updateState(d) {
+
+      const soc = d.soc;
+      setVal('soc', soc, v => fmt(v, 0));
+      if (soc != null) {
+        const bar = document.getElementById('socBar');
+        bar.style.width = Math.min(soc, 100) + '%';
+        bar.style.background = socColor(soc);
+        const socTs = (d.field_times || {}).soc;
+        if (socTs) {
+          const mins = Math.round((Date.now() - new Date(socTs).getTime()) / 60000);
+          bar.style.opacity = mins > 120 ? '0.35' : mins > 30 ? '0.6' : '1';
+        } else {
+          bar.style.opacity = '1';
+        }
+      }
+
+      const rangeVal = d.calc_range != null ? d.calc_range : d.range_km;
+      setVal('calcRange', rangeVal, v => fmt(v, 0));
+      setVal('avgCons',   d.avg_consumption,  v => fmt(v, 1));
+      setVal('odo',       d.odometer,         v => Math.round(v).toLocaleString('de'));
+      const ft = d.field_times || {};
+      setVal('batTemp',   staleVal(d.bat_temp,    ft.bat_temp,    60), v => fmt(v, 0));
+      setVal('extTemp',   staleVal(d.ext_temp,    ft.ext_temp,    60), v => fmt(v, 0));
+      setVal('power',     staleVal(d.power,       ft.power,       60), v => fmt(v, 1));
+      setVal('speed',     staleVal(d.speed,       ft.speed,       60), v => fmt(v, 0));
+      setVal('espBat',    staleVal(d.esp_battery, ft.esp_battery, 60), v => v);
+      setVal('lte',       staleVal(d.lte_signal,  ft.lte_signal,  60), v => {
+        if (v == null || v === 99) return '--';
+        const n = v <= 4 ? 0 : v <= 9 ? 1 : v <= 14 ? 2 : v <= 19 ? 3 : 4;
+        const color = n <= 1 ? '#da3633' : n <= 2 ? '#d29922' : '#3fb950';
+        const dim = '#484f58';
+        const bars = [
+          {x:1,  y:13, h:3},
+          {x:6,  y:9,  h:7},
+          {x:11, y:5,  h:11},
+          {x:16, y:1,  h:15},
+        ];
+        const rects = bars.map((b, i) =>
+          `<rect x="${b.x}" y="${b.y}" width="4" height="${b.h}" rx="1" fill="${i < n ? color : dim}"/>`
+        ).join('');
+        const opName = d.operator || '';
+        const opSpan = opName ? ` <span style="font-size:0.7rem;color:#8b949e;margin-left:0.15rem">${opName}</span>` : '';
+        return `<svg width="22" height="17" viewBox="0 0 21 17" style="vertical-align:middle">${rects}</svg>${opSpan}`;
+      }, true);
+
+      setAge('ageSoc',     ft.soc);
+      setAge('ageOdo',     ft.odometer);
+      setAge('ageBatTemp', ft.bat_temp);
+      setAge('ageExtTemp', ft.ext_temp);
+      setAge('agePower',   ft.power);
+      setAge('ageSpeed',   ft.speed);
+      setAge('ageEspBat',  ft.esp_battery);
+      setAge('ageLte',     ft.lte_signal);
+
+      if (d.lat && d.lon) {
+        const pos = [d.lat, d.lon];
+        const icon = createArrowIcon(d.heading, staleVal(d.speed, ft.speed, 5));
+        if (marker) {
+          marker.setLatLng(pos);
+          marker.setIcon(icon);
+        } else {
+          marker = L.marker(pos, {icon: icon, zIndexOffset: 1000}).addTo(map);
+          map.setView(pos, 15);
+        }
+        map.panTo(pos);
+      }
+
+      if (d.time) {
+        const ago = Math.round((Date.now() - new Date(d.time).getTime()) / 60000);
+        document.getElementById('ago').textContent = ago < 2 ? T.just_now : T.ago.replace('{0}', ago);
+      }
+
+      updateSeparators();
+    }
+
+    function updateTrail(points) {
+      if (trailLine) map.removeLayer(trailLine);
+      // Trail-Linie deaktiviert — nur Pfeil-Marker wird angezeigt
+    }
+
+    // ── Echtzeit-Updates via SSE (MQTT-Push) mit InfluxDB-Fallback ──
+    let _lastSseEvent = 0;
+    let _fallbackTimer = null;
+    const SSE_TIMEOUT = 60000;  // 60s ohne MQTT → InfluxDB-Fallback
+    let _currentState = {};     // Merged state: SSE + fullRefresh
+
+    function mergeState(incoming) {
+      const ft = _currentState.field_times || {};
+      const ift = incoming.field_times || {};
+      for (const [k, v] of Object.entries(incoming)) {
+        if (k === 'field_times') continue;
+        _currentState[k] = v;
+      }
+      Object.assign(ft, ift);
+      _currentState.field_times = ft;
+      if (incoming.time) _currentState.time = incoming.time;
+    }
+
+    async function fullRefresh() {
+      try {
+        const [stateRes, trailRes] = await Promise.all([
+          fetch('/api/vehicle-state'),
+          fetch('/api/trail')
+        ]);
+        const state = await stateRes.json();
+        const trail = await trailRes.json();
+        mergeState(state);
+        updateState(_currentState);
+        updateTrail(trail);
+      } catch (e) {}
+    }
+
+    function resetFallbackTimer() {
+      if (_fallbackTimer) clearInterval(_fallbackTimer);
+      _fallbackTimer = setInterval(() => {
+        if (Date.now() - _lastSseEvent > SSE_TIMEOUT) {
+          fullRefresh();
+        }
+      }, 15000);
+    }
+
+    function connectSSE() {
+      const es = new EventSource('/api/vehicle-stream');
+      es.onmessage = function(e) {
+        _lastSseEvent = Date.now();
+        try {
+          const incoming = JSON.parse(e.data);
+          mergeState(incoming);
+          updateState(_currentState);
+          if (incoming.lat && incoming.lon) {
+            const p = L.latLng(incoming.lat, incoming.lon);
+            if (marker) marker.setLatLng(p);
+            if (incoming.heading != null && arrowHead) {
+              arrowHead.setLatLng(p);
+              arrowHead.setRotationAngle(incoming.heading);
+            }
+          }
+        } catch (err) {}
+      };
+      es.onerror = function() {
+        es.close();
+        fullRefresh();
+        setTimeout(connectSSE, 5000);
+      };
+    }
+
+    // Boot: Erst voller Refresh (InfluxDB-State + Trail), dann SSE
+    loadLocations();
+    loadChargeLocations();
+    fullRefresh().then(() => {
+      connectSSE();
+      resetFallbackTimer();
+    });
+  </script>
+
+  <script>
+  (function(){
+    const ACTIVE_ID = {{ (active_vehicle.id if active_vehicle else 'null') | tojson }};
+    async function initVehPicker() {
+      const picker = document.getElementById('vehPicker');
+      if (!picker) return;
+      const res = await fetch('/api/vehicles');
+      const vehicles = await res.json();
+      if (vehicles.length <= 1) { picker.style.cursor = 'default'; return; }
+      document.getElementById('vehDropdown').innerHTML = vehicles.map(v =>
+        `<div class="veh-opt ${v.id === ACTIVE_ID ? 'active' : ''}" onclick="switchVehicle(${v.id},event)">${v.name || v.plate}</div>`
+      ).join('');
+    }
+    window.toggleVehPicker = function(e) {
+      e.stopPropagation();
+      document.getElementById('vehPicker').classList.toggle('open');
+    };
+    window.switchVehicle = async function(id, e) {
+      e.stopPropagation();
+      await fetch('/api/user/active-vehicle', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({vehicle_id:id})});
+      location.reload();
+    };
+    document.addEventListener('click', () => {
+      const p = document.getElementById('vehPicker');
+      if (p) p.classList.remove('open');
+    });
+    initVehPicker();
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+@startuml infrastructure
+!theme plain
+skinparam backgroundColor #0E1B2C
+skinparam defaultFontColor #E8EEF7
+skinparam defaultFontName Helvetica
+skinparam ArrowColor #1DE9B6
+skinparam nodeBackgroundColor #14253A
+skinparam nodeBorderColor #1DE9B6
+skinparam nodeFontColor #E8EEF7
+skinparam componentBackgroundColor #1A2B42
+skinparam componentBorderColor #1DE9B6
+skinparam componentFontColor #E8EEF7
+
+title ID·Mate — Deployment (Synology NAS)
+
+node "Synology NAS (DSM)" {
+  node "Docker (Portainer)" {
+    component "Mosquitto\n(MQTT broker)" as M
+    component "Triplog\n(Flask)" as T
+    component "InfluxDB" as I
+  }
+  node "Volumes" {
+    component "Named volumes\n(or bind mounts\n/volume1/docker/idmate/...)" as V
+  }
+}
+
+M --> V : mosquitto-data,\nmosquitto-certs
+T --> V : triplog-data\n(SQLite, media)
+I --> V : influxdb-data,\ninfluxdb-config
+
+@enduml

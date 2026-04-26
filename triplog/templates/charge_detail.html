@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="{{ current_lang|lower }}">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'><rect width='128' height='128' rx='28' fill='%230E1B2C'/><circle cx='38' cy='34' r='6' fill='%231DE9B6'/><rect x='32' y='46' width='12' height='56' rx='3' fill='%23E8EEF7'/><rect x='56' y='34' width='44' height='68' rx='10' fill='none' stroke='%23E8EEF7' stroke-width='6'/><rect x='72' y='26' width='12' height='10' rx='2' fill='%23E8EEF7'/><rect x='64' y='58' width='28' height='36' rx='4' fill='%231DE9B6'/><path d='M80 62 l-10 16 h8 l-4 12 14 -18 h-8 z' fill='%230E1B2C'/></svg>">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0d1117">
+  {% if session.lat and session.lon %}
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9/dist/leaflet.css">
+  {% endif %}
+  <title>ID·Mate — {{ t.charge_detail_title }} {{ '#' ~ session.session_number if session.session_number else t.charge_detail_external }}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d1117; color: #e6edf3; overflow-x:hidden; }
+
+    .hdr{display:flex;align-items:center;padding:0.5rem 1rem;border-bottom:1px solid #21262d;height:45px;max-width:1200px;margin:0 auto;position:sticky;top:0;z-index:1000;background:#0d1117}
+    .hdr h1{font-size:1rem;font-weight:600;flex:1;margin:0}
+    
+    /* Vehicle Picker */
+    .veh-picker{position:relative;display:flex;align-items:center;gap:0.3rem;padding:0.2rem 0.5rem;border-radius:6px;cursor:pointer;color:#8b949e;font-size:0.8rem;user-select:none;border:1px solid transparent;transition:border-color .15s,background .15s}
+    .veh-picker:hover{background:#161b22;border-color:#30363d;color:#e6edf3}
+    .veh-chevron{opacity:0.5;transition:transform .2s;flex-shrink:0}
+    .veh-picker.open .veh-chevron{transform:rotate(180deg)}
+    .veh-dropdown{display:none;position:absolute;top:calc(100% + 4px);right:0;min-width:150px;background:#161b22;border:1px solid #30363d;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:500;overflow:hidden}
+    .veh-picker.open .veh-dropdown{display:block}
+    .veh-opt{padding:0.5rem 0.8rem;font-size:0.8rem;color:#8b949e;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:0.5rem}
+    .veh-opt:hover{background:#21262d;color:#e6edf3}
+    .veh-opt.active{color:#58a6ff}
+    .veh-opt::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:transparent;flex-shrink:0}
+    .veh-opt.active::before{background:#58a6ff}
+
+    .burger{background:none;border:none;color:#8b949e;font-size:1.4rem;cursor:pointer;padding:0.2rem 0.4rem;line-height:1}
+    .burger:hover{color:#e6edf3}
+    .menu-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000}
+    .menu-overlay.open{display:block}
+    .menu{position:fixed;top:0;right:-260px;width:260px;height:100%;background:#161b22;border-left:1px solid #30363d;z-index:10001;transition:right .25s ease;padding:1rem 0}
+    .menu.open{right:0}
+    .menu a{display:block;padding:0.8rem 1.2rem;color:#e6edf3;text-decoration:none;font-size:0.95rem;border-bottom:1px solid #21262d}
+    .menu a:hover{background:#21262d}
+    .menu .close-btn{text-align:right;padding:0.4rem 1rem;color:#8b949e;cursor:pointer;font-size:1.2rem}
+
+    .content{max-width:1200px;margin:0 auto;padding:0.8rem}
+
+    .back-link{display:inline-block;margin-bottom:0.8rem;color:#58a6ff;text-decoration:none;font-size:0.85rem}
+    .back-link:hover{text-decoration:underline}
+
+    /* Summary card */
+    .summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:0.5rem;margin-bottom:1rem;padding:0.8rem;border:1px solid #30363d;border-radius:8px;background:#161b22}
+    .summary .item{font-size:0.8rem}
+    .summary .item .label{color:#8b949e;font-size:0.7rem;margin-bottom:0.1rem}
+    .summary .item .val{font-size:1rem;font-weight:600;font-variant-numeric:tabular-nums}
+    .pos{color:#3fb950} .neg{color:#da3633}
+
+    /* Input fields (external session edit) */
+    .edit-input{background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:4px;padding:0.2rem 0.3rem;font-size:0.75rem;width:100%}
+    .edit-input:focus{border-color:#58a6ff;outline:none}
+
+    /* Readings table */
+    table{width:100%;border-collapse:collapse;font-size:0.78rem}
+    th{text-align:left;padding:0.4rem;border-bottom:2px solid #30363d;color:#8b949e;font-weight:500;position:sticky;top:0;background:#0d1117;z-index:2;white-space:nowrap}
+    td{padding:0.4rem;border-bottom:1px solid #21262d;vertical-align:middle}
+    tr:hover{background:#161b22}
+    .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+    /* Charts */
+    .charts{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem}
+    .chart-card{background:#161b22;border:1px solid #21262d;border-radius:8px;padding:1rem}
+    .chart-card h3{font-size:0.8rem;color:#8b949e;margin-bottom:0.6rem;font-weight:500}
+    .chart-card canvas{width:100%!important;height:220px!important}
+    @media(max-width:700px){.charts{grid-template-columns:1fr}.map-chart-row{grid-template-columns:1fr!important}}
+
+  </style>
+</head>
+<body>
+  <div class="menu-overlay" id="menuOverlay" onclick="toggleMenu()"></div>
+  <div class="menu" id="menu">
+    <div class="close-btn" onclick="toggleMenu()">&times;</div>
+    <a href="/">{{ t.nav_dashboard }}</a>
+    <a href="/trips">{{ t.nav_trips }}</a>
+    <a href="/journeys">{{ t.nav_journeys }}</a>
+    <a href="/analysis">{{ t.nav_analysis }}</a>
+    <a href="/charges">{{ t.nav_charges }}</a>
+    <a href="/admin">{{ t.nav_admin }}</a>
+    <a href="/logout" style="color:#da3633;margin-top:1rem">{{ t.nav_logout }}</a>
+  </div>
+
+  <div class="hdr">
+    <h1><a href="/" style="color:#58a6ff;text-shadow:0 0 8px rgba(88,166,255,0.4);text-decoration:none">ID·Mate</a> — {{ t.charge_detail_title }} {{ '#' ~ session.session_number if session.session_number else t.charge_detail_external }}</h1>
+    {% if active_vehicle %}
+    <div class="veh-picker" id="vehPicker" onclick="toggleVehPicker(event)">
+      <span id="vehPickerLabel">{{ vehicle_name }}</span>
+      <svg class="veh-chevron" viewBox="0 0 10 6" width="10" height="6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div class="veh-dropdown" id="vehDropdown"></div>
+    </div>
+    {% endif %}
+    <button class="burger" onclick="toggleMenu()">&#9776;</button>
+  </div>
+
+  <div class="content">
+    <a class="back-link" href="/charges">&larr; {{ t.charge_detail_back }}</a>
+
+    <!-- Summary -->
+    <div class="summary">
+      <div class="item"><div class="label">{{ t.common_vehicle }}</div><div class="val">{{ vehicle_name }}</div></div>
+      <div class="item"><div class="label">{{ t.common_plate }}</div><div class="val">{{ session.vehicle_plate }}</div></div>
+      {% if session.is_external %}
+      <div class="item"><div class="label">{{ t.common_type }}</div><div class="val" style="color:#d29922">{{ t.common_external }}</div></div>
+      {% endif %}
+      <div class="item"><div class="label">{{ t.common_date }}</div><div class="val">{{ session.start_time[:10] }}</div></div>
+      <div class="item"><div class="label">{{ t.common_start_time }}</div><div class="val">{{ session.start_time[11:16] }}</div></div>
+      <div class="item"><div class="label">{{ t.common_end_time }}</div><div class="val">{{ session.end_time[11:16] if session.end_time else '?' }}</div></div>
+      <div class="item"><div class="label">{{ t.common_duration }}</div><div class="val">{% if session.duration_minutes %}{{ session.duration_minutes // 60 }}h {{ '%02d' % (session.duration_minutes % 60) }}min{% else %}--{% endif %}</div></div>
+      <div class="item"><div class="label">{{ t.charge_detail_kwh_charged }}</div><div class="val">{{ '%.2f' % session.total_kwh if session.total_kwh else '--' }}</div></div>
+      <div class="item"><div class="label">{{ t.charge_detail_avg_kw }}</div><div class="val">{{ '%.1f' % session.avg_kw if session.avg_kw else '--' }}{% if session.avg_kw and session.avg_kw > 22 and loc_type == 'ac' %} <span title="Ø {{ '%.0f' % session.avg_kw }} kW bei AC-Standort — DC?" style="color:#d29922;cursor:help">&#9888;</span>{% endif %}</div></div>
+      {% if session.soc_start is not none or session.soc_end is not none %}
+      <div class="item"><div class="label">{{ t.charge_detail_soc }}</div><div class="val">{{ '%.0f' % session.soc_start if session.soc_start is not none else '?' }} → {{ '%.0f' % session.soc_end if session.soc_end is not none else '?' }} %</div></div>
+      {% endif %}
+      <div class="item"><div class="label">{{ t.common_odometer }}</div><div class="val">{{ '{:,.0f}'.format(session.odometer)|replace(',', '.') if session.odometer else '--' }}</div></div>
+      <div class="item" style="grid-column:span 2">
+        <div class="label">{{ t.charge_detail_station }}</div>
+        <div class="val" style="display:flex;align-items:center;gap:0.4rem">
+          {% if session_op_info %}
+          <div id="opBadge" style="width:32px;height:32px;border-radius:5px;background:{{ session_op_info.color }};display:inline-flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">
+            {% if session_op_info.icon_url %}<img src="{{ session_op_info.icon_url }}" style="width:24px;height:24px;object-fit:contain">{% endif %}
+          </div>
+          {% else %}
+          <div id="opBadge" style="display:none"></div>
+          {% endif %}
+          <select id="locSelect" onchange="saveStation()"
+                  style="background:transparent;border:none;border-bottom:1px dashed #30363d;color:#e6edf3;font-size:1rem;font-weight:600;padding:0;font-family:inherit;cursor:pointer;max-width:200px">
+            <option value="">{{ t.common_select }}</option>
+            {% for loc in all_locations %}
+            <option value="{{ loc.name }}" {{ 'selected' if session.location_name == loc.name else '' }}>{{ loc.name }}{% if loc.op_name %} ({{ loc.op_name }}){% endif %}</option>
+            {% endfor %}
+          </select>
+          <span id="locMsg" style="font-size:0.7rem"></span>
+        </div>
+      </div>
+      <div class="item"><div class="label">{{ t.common_distance }}</div><div class="val">{{ '%.0f' % session.distance if session.distance else '--' }} km</div></div>
+      {% if not session.is_external %}
+      <div class="item"><div class="label">{{ t.charge_detail_cost_dynamic }}</div><div class="val">{{ '%.2f' % session.cost_tibber if session.cost_tibber is not none else '--' }} EUR</div></div>
+      <div class="item"><div class="label">{{ t.charge_detail_cost_flat }}</div><div class="val">{{ '%.2f' % session.cost_pauschale if session.cost_pauschale is not none else '--' }} EUR</div></div>
+      <div class="item"><div class="label">{{ t.charge_detail_cost_diff }}</div><div class="val {{ 'pos' if session.cost_diff is not none and session.cost_diff >= 0 else 'neg' }}">{{ '%+.2f' % session.cost_diff if session.cost_diff is not none else '--' }} EUR</div></div>
+      <div class="item"><div class="label">{{ t.charge_detail_avg_price }}</div><div class="val">{{ '%.4f' % session.avg_tibber_price if session.avg_tibber_price else '--' }} EUR/kWh</div></div>
+      {% else %}
+      <div class="item"><div class="label">{{ t.charge_detail_cost_total }}</div><div class="val">{{ '%.2f' % session.cost_total if session.cost_total else '--' }} EUR</div></div>
+      <div class="item"><div class="label">{{ t.common_note }}</div><div class="val">{{ session.note or '--' }}</div></div>
+      {% endif %}
+    </div>
+
+    <!-- Map + chart side by side (desktop: 2 columns, mobile: 1 column) -->
+    <div style="margin-bottom:1rem;display:grid;grid-template-columns:{% if session.lat and session.lon %}1fr 1fr{% else %}1fr{% endif %};gap:0.6rem;align-items:stretch" class="map-chart-row">
+
+    {% if session.lat and session.lon %}
+    <!-- Mini-Map -->
+    <div style="padding:0.6rem;border:1px solid #30363d;border-radius:8px;background:#161b22">
+      <div id="detailMap" style="width:100%;height:200px;border-radius:6px;margin-bottom:0.5rem"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:0.4rem">
+        <div>
+          <div style="font-size:0.85rem;font-weight:600">{{ session.location_name or t.charge_detail_unknown_location }}</div>
+          <div style="font-size:0.7rem;color:#8b949e;margin-top:0.1rem">{{ '%.5f' % session.lat }}, {{ '%.5f' % session.lon }}</div>
+        </div>
+        <a href="/admin?tab=chargelocations&lat={{ session.lat }}&lon={{ session.lon }}&name={{ (session.location_name or '')|urlencode }}"
+           style="font-size:0.7rem;color:#58a6ff;text-decoration:none;padding:0.25rem 0.5rem;border:1px solid #30363d;border-radius:6px;white-space:nowrap"
+           title="{{ t.charge_detail_geofence }}">&#9889; Geofence</a>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if not session.is_external %}
+    <!-- Chart (right column next to map, or full width without map) -->
+    <div class="chart-card" style="margin:0">
+      <h3>{{ t.charge_detail_chart_title }}</h3>
+      <canvas id="cCombined" style="width:100%!important;height:230px!important"></canvas>
+    </div>
+    {% endif %}
+
+    </div><!-- end map-chart-row -->
+
+    {% if session.is_external %}
+    <!-- Edit external session -->
+    <div class="ext-edit" style="padding:0.8rem;border:1px solid #30363d;border-radius:8px;background:#161b22;margin-bottom:1rem">
+      <h3 style="font-size:0.85rem;color:#8b949e;margin-bottom:0.6rem">{{ t.charge_detail_edit_external }}</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:0.5rem">
+        <div><label style="font-size:0.7rem;color:#8b949e">{{ t.common_start_time }}</label><input id="extStart" type="datetime-local" class="edit-input" value="{{ session.start_time[:16] if session.start_time else '' }}"></div>
+        <div><label style="font-size:0.7rem;color:#8b949e">{{ t.common_end_time }}</label><input id="extEnd" type="datetime-local" class="edit-input" value="{{ session.end_time[:16] if session.end_time else '' }}"></div>
+        <div><label style="font-size:0.7rem;color:#8b949e">kWh</label><input id="extKwh" type="number" step="0.01" class="edit-input" value="{{ session.total_kwh or '' }}"></div>
+        <div><label style="font-size:0.7rem;color:#8b949e">{{ t.common_cost_eur }}</label><input id="extCost" type="number" step="0.01" class="edit-input" value="{{ session.cost_total or '' }}"></div>
+        <div><label style="font-size:0.7rem;color:#8b949e">{{ t.common_odometer }}</label><input id="extOdo" type="number" step="1" class="edit-input" value="{{ session.odometer|int if session.odometer else '' }}"></div>
+        <div><label style="font-size:0.7rem;color:#8b949e">SoC Start (%)</label><input id="extSocStart" type="number" step="1" min="0" max="100" class="edit-input" value="{{ '%.0f' % session.soc_start if session.soc_start is not none else '' }}"></div>
+        <div><label style="font-size:0.7rem;color:#8b949e">SoC Ende (%)</label><input id="extSocEnd" type="number" step="1" min="0" max="100" class="edit-input" value="{{ '%.0f' % session.soc_end if session.soc_end is not none else '' }}"></div>
+        <div><label style="font-size:0.7rem;color:#8b949e">{{ t.common_note }}</label><input id="extNote" class="edit-input" value="{{ session.note or '' }}"></div>
+      </div>
+      <div style="margin-top:0.6rem;display:flex;gap:0.5rem">
+        <button style="padding:0.35rem 0.8rem;border-radius:6px;border:none;background:#238636;color:#fff;font-size:0.8rem;cursor:pointer" onclick="saveExternal()">{{ t.common_save }}</button>
+        <button style="padding:0.35rem 0.8rem;border-radius:6px;border:none;background:#1f6feb;color:#fff;font-size:0.8rem;cursor:pointer" onclick="recalcDistance()">{{ t.charge_detail_recalc_distance }}</button>
+        <button style="padding:0.35rem 0.8rem;border-radius:6px;border:1px solid #da3633;background:transparent;color:#da3633;font-size:0.8rem;cursor:pointer" onclick="deleteSession()">{{ t.common_delete }}</button>
+        <span id="extMsg" style="font-size:0.8rem;color:#8b949e;align-self:center"></span>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if not session.is_external %}
+    <!-- Readings table -->
+    <table id="readingsTable">
+      <thead>
+        <tr>
+          <th>{{ t.charge_detail_col_timestamp }}</th>
+          <th>{{ t.common_vehicle }}</th>
+          <th class="num">{{ t.charge_detail_col_meter_start }}</th>
+          <th class="num">{{ t.charge_detail_col_meter_end }}</th>
+          <th class="num">kWh</th>
+          <th class="num">{{ t.charge_detail_col_price }}</th>
+          <th class="num">{{ t.charge_detail_col_base_fee }}</th>
+          <th class="num">{{ t.common_odometer }}</th>
+          <th class="num">SoC</th>
+          <th class="num">{{ t.charge_detail_col_cost_dynamic }}</th>
+          <th class="num">{{ t.charge_detail_col_cost_flat }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in readings %}
+        <tr>
+          <td>{{ r.timestamp }}</td>
+          <td>{{ r.vehicle_plate }}</td>
+          <td class="num">{{ '%.2f' % r.meter_start if r.meter_start is not none else '--' }}</td>
+          <td class="num">{{ '%.2f' % r.meter_end if r.meter_end is not none else '--' }}</td>
+          <td class="num">{{ '%.3f' % r.kwh if r.kwh else '--' }}</td>
+          <td class="num">{{ '%.4f' % r.tibber_price if r.tibber_price is not none else '--' }}</td>
+          <td class="num">{{ '%.4f' % r.tibber_grundgebuehr if r.tibber_grundgebuehr is not none else '--' }}</td>
+          <td class="num">{{ '%.0f' % r.odometer if r.odometer is not none else '--' }}</td>
+          <td class="num">{{ '%.0f' % r.soc if r.soc is not none else '--' }}{% if r.soc is not none %} %{% endif %}</td>
+          <td class="num">
+            {% if r.kwh and r.tibber_price is not none %}
+              {{ '%.4f' % (r.kwh * r.tibber_price + (r.tibber_grundgebuehr or 0)) }}
+            {% else %}--{% endif %}
+          </td>
+          <td class="num">
+            {% if r.kwh and pauschale %}
+              {{ '%.4f' % (r.kwh * pauschale) }}
+            {% else %}--{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+
+  <script>
+    function toggleMenu() {
+      document.getElementById('menu').classList.toggle('open');
+      document.getElementById('menuOverlay').classList.toggle('open');
+    }
+
+    // ── Change location ──
+    async function saveStation() {
+      const name = document.getElementById('locSelect').value;
+      const msg = document.getElementById('locMsg');
+      const res = await fetch('/api/charge/sessions/{{ session.id }}/location', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({location_name: name})
+      });
+      if (res.ok) {
+        msg.style.color = '#3fb950'; msg.textContent = '✓';
+        setTimeout(() => location.reload(), 500);
+      } else {
+        msg.style.color = '#da3633'; msg.textContent = '{{ t.common_error }}';
+      }
+    }
+
+    // ── External session edit/delete ──
+    async function saveExternal() {
+      const start = document.getElementById('extStart')?.value;
+      const end = document.getElementById('extEnd')?.value;
+      const body = {
+        start_time: start ? start.replace('T', ' ') : null,
+        end_time: end ? end.replace('T', ' ') : null,
+        total_kwh: parseFloat(document.getElementById('extKwh')?.value) || null,
+        cost_total: parseFloat(document.getElementById('extCost')?.value) || null,
+        odometer: parseFloat(document.getElementById('extOdo')?.value) || null,
+        soc_start: document.getElementById('extSocStart')?.value !== '' ? parseFloat(document.getElementById('extSocStart').value) : null,
+        soc_end: document.getElementById('extSocEnd')?.value !== '' ? parseFloat(document.getElementById('extSocEnd').value) : null,
+        note: document.getElementById('extNote')?.value || null,
+        operator: document.getElementById('operatorName')?.value.trim() || null
+      };
+      const res = await fetch('/api/charge/sessions/{{ session.id }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body)
+      });
+      const msg = document.getElementById('extMsg');
+      if (res.ok) {
+        msg.style.color = '#3fb950'; msg.textContent = '{{ t.common_saved }}';
+        setTimeout(() => location.reload(), 1000);
+      } else {
+        msg.style.color = '#da3633'; msg.textContent = '{{ t.common_error }}';
+      }
+    }
+
+    async function recalcDistance() {
+      const msg = document.getElementById('extMsg');
+      msg.style.color = '#8b949e'; msg.textContent = '{{ t.common_calculating }}';
+      const res = await fetch('/api/charge/rebuild', { method: 'POST' });
+      if (res.ok) {
+        msg.style.color = '#3fb950'; msg.textContent = '{{ t.charge_detail_distances_recalced }}';
+        setTimeout(() => location.reload(), 1000);
+      } else {
+        msg.style.color = '#da3633'; msg.textContent = '{{ t.common_error }}';
+      }
+    }
+
+    async function deleteSession() {
+      if (!confirm('{{ t.charge_detail_confirm_delete }}')) return;
+      const res = await fetch('/api/charge/sessions/{{ session.id }}', { method: 'DELETE' });
+      if (res.ok) location.href = '/charges';
+      else alert('{{ t.charge_detail_delete_error }}');
+    }
+  </script>
+
+  {% if session.lat and session.lon %}
+  <script src="https://unpkg.com/leaflet@1.9/dist/leaflet.js"></script>
+  <script>
+    (function() {
+      const lat = {{ session.lat }}, lon = {{ session.lon }};
+      const map = L.map('detailMap', { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false }).setView([lat, lon], 15);
+      L.tileLayer('{{ map_tile_url }}', { maxZoom: 19 }).addTo(map);
+      {% if session_op_info and session_op_info.icon_url %}
+      const _iconHtml = '<div style="width:15px;height:15px;border-radius:4px;background:{{ session_op_info.color }};display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.7)"><img src="{{ session_op_info.icon_url }}" style="width:12px;height:12px;object-fit:contain"></div>';
+      {% elif session_op_info %}
+      const _iconHtml = '<div style="width:15px;height:15px;border-radius:4px;background:{{ session_op_info.color }};display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.7)"><svg viewBox="0 0 24 24" width="10" height="10"><path d="M11,21h-1l1-7H7.5c-0.88,0-0.33-0.75-0.31-0.78C8.48,10.94,10.42,7.54,13.01,3h1l-1,7h3.51c0.4,0,0.62,0.19,0.4,0.66C12.97,17.55,11,21,11,21z" fill="white"/></svg></div>';
+      {% else %}
+      const _iconHtml = '<div style="width:15px;height:15px;border-radius:4px;background:#58a6ff;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.7)"><svg viewBox="0 0 24 24" width="10" height="10"><path d="M11,21h-1l1-7H7.5c-0.88,0-0.33-0.75-0.31-0.78C8.48,10.94,10.42,7.54,13.01,3h1l-1,7h3.51c0.4,0,0.62,0.19,0.4,0.66C12.97,17.55,11,21,11,21z" fill="white"/></svg></div>';
+      {% endif %}
+      const pinIcon = L.divIcon({ className: '', html: _iconHtml, iconSize: [15, 15], iconAnchor: [7, 7] });
+      L.marker([lat, lon], { icon: pinIcon }).addTo(map);
+    })();
+  </script>
+  {% endif %}
+
+  {% if not session.is_external %}
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <script>
+    // ── Charts ──
+    (function() {
+      const labels = [{% for r in readings %}'{{ r.timestamp[11:16] }}',{% endfor %}];
+      const kwhs = [{% for r in readings %}{{ r.kwh if r.kwh else 0 }},{% endfor %}];
+      const tibber = [{% for r in readings %}{{ r.tibber_price * 100 if r.tibber_price is not none else 'null' }},{% endfor %}];
+      const pauschale = {{ pauschale * 100 }};
+
+      if (labels.length > 1) {
+        new Chart(document.getElementById('cCombined'), {
+          data: {
+            labels,
+            datasets: [
+              {
+                type: 'bar',
+                label: '{{ t.charge_detail_chart_kwh }}',
+                data: kwhs,
+                backgroundColor: '#58a6ff55',
+                borderColor: '#58a6ff',
+                borderWidth: 1,
+                yAxisID: 'yKwh',
+                order: 2
+              },
+              {
+                type: 'line',
+                label: '{{ t.charge_detail_chart_dynamic }}',
+                data: tibber,
+                borderColor: '#d29922',
+                backgroundColor: '#d2992215',
+                borderWidth: 1.5,
+                pointRadius: 1,
+                fill: true,
+                tension: 0.3,
+                spanGaps: true,
+                yAxisID: 'yPrice',
+                order: 1
+              },
+              {
+                type: 'line',
+                label: '{{ t.charge_detail_chart_flat }}',
+                data: labels.map(() => pauschale),
+                borderColor: '#8b949e',
+                borderWidth: 1.5,
+                borderDash: [5, 3],
+                pointRadius: 0,
+                fill: false,
+                yAxisID: 'yPrice',
+                order: 1
+              }
+            ]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: true, labels: { color: '#8b949e', font: { size: 10 } } } },
+            scales: {
+              x: { ticks: { color: '#484f58', font: { size: 10 }, maxTicksLimit: 12 }, grid: { color: '#21262d' } },
+              yKwh: {
+                position: 'left',
+                title: { display: true, text: 'kWh', color: '#58a6ff', font: { size: 10 } },
+                ticks: { color: '#484f58', font: { size: 10 } },
+                grid: { color: '#21262d' }
+              },
+              yPrice: {
+                position: 'right',
+                title: { display: true, text: 'ct/kWh', color: '#d29922', font: { size: 10 } },
+                ticks: { color: '#484f58', font: { size: 10 } },
+                grid: { drawOnChartArea: false }
+              }
+            }
+          }
+        });
+      }
+    })();
+
+  </script>
+  {% endif %}
+<footer style="text-align:center;padding:1.5rem 0 0.8rem;font-size:0.7rem;color:#484f58"><a href="https://github.com/TheInGoF/IDMate-dev" target="_blank" style="color:#484f58;text-decoration:none">&copy; 2025–2026 ID·Mate &middot; AGPL v3 &middot; v{{ version }}</a></footer>
+
+  <script>
+  (function(){
+    const ACTIVE_ID = {{ (active_vehicle.id if active_vehicle else 'null') | tojson }};
+    async function initVehPicker() {
+      const picker = document.getElementById('vehPicker');
+      if (!picker) return;
+      const res = await fetch('/api/vehicles');
+      const vehicles = await res.json();
+      if (vehicles.length <= 1) { picker.style.cursor = 'default'; return; }
+      document.getElementById('vehDropdown').innerHTML = vehicles.map(v =>
+        `<div class="veh-opt ${v.id === ACTIVE_ID ? 'active' : ''}" onclick="switchVehicle(${v.id},event)">${v.name || v.plate}</div>`
+      ).join('');
+    }
+    window.toggleVehPicker = function(e) {
+      e.stopPropagation();
+      document.getElementById('vehPicker').classList.toggle('open');
+    };
+    window.switchVehicle = async function(id, e) {
+      e.stopPropagation();
+      await fetch('/api/user/active-vehicle', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({vehicle_id:id})});
+      location.reload();
+    };
+    document.addEventListener('click', () => {
+      const p = document.getElementById('vehPicker');
+      if (p) p.classList.remove('open');
+    });
+    initVehPicker();
+  })();
+  </script>
+</body>
+</html>

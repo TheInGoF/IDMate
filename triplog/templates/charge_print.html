@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="{{ current_lang|lower }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ID·Mate — {{ t.print_title }} {% if month_name and year %}{{ month_name }} {{ year }}{% endif %}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',Arial,Helvetica,sans-serif;background:#fff;color:#222;font-size:10pt;padding:1.5cm 2cm}
+
+    /* Toolbar (no-print) */
+    .toolbar{position:fixed;top:0;left:0;right:0;background:#1a1a1a;color:#fff;padding:0.5rem 1rem;display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap;z-index:100;font-size:11pt}
+    .toolbar select,.toolbar input{padding:0.25rem 0.4rem;border-radius:4px;border:1px solid #444;background:#2a2a2a;color:#fff;font-size:9pt}
+    .toolbar button{padding:0.3rem 0.8rem;border-radius:4px;border:none;cursor:pointer;font-size:9pt;font-weight:600}
+    .toolbar .btn-print{background:#238636;color:#fff}
+    .toolbar .btn-save{background:#1f6feb;color:#fff}
+    .toolbar label{color:#aaa;font-size:10pt}
+
+    /* Page header */
+    .page-hdr{display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid #222;padding-bottom:0.4rem;margin-bottom:1.5rem}
+    .page-hdr-title{font-size:13pt;font-weight:700;letter-spacing:0.02em}
+    .page-hdr-sub{font-size:9pt;color:#555}
+
+    /* Editable fields */
+    [contenteditable]{outline:none;border-bottom:1px dashed #ccc;min-height:1em}
+    [contenteditable]:hover{background:#fffde7}
+    [contenteditable]:focus{background:#fffde7;border-bottom-color:#999}
+
+    /* Letter layout */
+    .addr-row{display:flex;justify-content:space-between;margin-bottom:1.8rem}
+    .addr-sender{font-size:10pt;line-height:1.5}
+    .addr-recipient{font-size:10pt;line-height:1.5;text-align:right}
+
+    .date-block{text-align:right;margin-bottom:1.2rem;font-size:9pt;line-height:1.6}
+
+    h2{font-size:12pt;font-weight:700;margin-bottom:1rem;border-bottom:1px solid #ccc;padding-bottom:0.3rem}
+
+    .letter-text{font-size:9pt;line-height:1.6;margin-bottom:0.8rem}
+
+    /* Info box */
+    .info-box{border:1px solid #999;border-radius:10px;padding:0.8rem 1rem;margin-bottom:1.2rem;display:flex;gap:1.5rem;flex-wrap:wrap;background:#fafafa}
+    .info-col{flex:1;min-width:200px}
+    .info-row{display:flex;gap:0.4rem;font-size:9.5pt;line-height:1.8}
+    .info-label{font-weight:700;min-width:110px;color:#333}
+    .info-val{flex:1}
+
+    /* Summary box */
+    .summary-box{background:#f0f0f0;border:1px solid #999;border-radius:10px;padding:0.6rem 1rem;margin-bottom:0.6rem;font-size:10pt;font-weight:700}
+    .excluded-note{font-size:6pt;color:#555;margin-bottom:1rem}
+
+    /* Table */
+    table{width:100%;border-collapse:collapse;font-size:8pt;margin-bottom:1rem;table-layout:auto}
+    th{text-align:left;padding:0.35rem 0.4rem;border-bottom:2px solid #222;font-weight:700;font-size:7.5pt;color:#333}
+    th small{font-weight:400;color:#777}
+    td{padding:0.3rem 0.4rem;border-bottom:1px solid #ddd;font-size:8pt;white-space:nowrap}
+    tbody tr:nth-child(even){background:#f7f7f7}
+    .num{text-align:right;font-variant-numeric:tabular-nums}
+    tfoot td{font-weight:700;border-top:2px solid #222;border-bottom:none;background:transparent}
+
+    /* Footer */
+    .footer{text-align:center;font-size:7.5pt;color:#999;margin-top:2rem;border-top:1px solid #ccc;padding-top:0.4rem}
+
+    /* Statistics charts */
+    .stat-tiles{display:flex;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap}
+    .stat-tile{flex:1;min-width:140px;border:1px solid #999;border-radius:10px;padding:0.6rem 0.8rem;text-align:center;background:#fafafa}
+    .stat-tile-label{font-size:8pt;color:#555;margin-bottom:0.2rem}
+    .stat-tile-val{font-size:13pt;font-weight:700}
+    .chart-grid{display:flex;flex-direction:column;gap:0.8rem;max-width:556px}
+    .chart-card{border:1px solid #ccc;border-radius:10px;padding:0.5rem;overflow:hidden;min-width:0}
+    .chart-card .chart-title{font-size:8pt;font-weight:700;margin-bottom:0.3rem;color:#333}
+    .chart-card{position:relative;height:172px}
+    .chart-card canvas{display:block}
+
+    /* Data info page */
+    .data-info-section{margin-bottom:1.2rem;padding:0.6rem 0;border-bottom:1px solid #eee}
+    .data-info-section:last-child{border-bottom:none}
+
+    /* Page footer on every page */
+    @page{
+      margin:1.5cm 1.5cm 2.5cm;
+      @bottom-center{
+        content:"{{ t.print_footer }} \00B7  v{{ version }} \2014  {{ t.print_footer_generated }} {{ now }}  \2014  " counter(page) " / " counter(pages);
+        font-size:7.5pt;color:#999;
+      }
+    }
+
+    /* Print — force backgrounds */
+    @media print{
+      *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+      body{padding:0.5cm 1.5cm}
+      .toolbar{display:none!important}
+      [contenteditable]{border-bottom:none}
+      [contenteditable]:hover{background:transparent}
+      .info-box{border:1px solid #000;border-radius:10px}
+      .summary-box{border:1px solid #000}
+      .page-break-before{page-break-before:always}
+      .footer{display:none}
+    }
+    /* Mobile print — tighter margins for iPhone Safari */
+    @media print and (max-width:600px){
+      @page{margin:0.5cm}
+      body{padding:0.2cm 0.3cm;font-size:9pt}
+    }
+    @media screen{
+      body{padding-top:4rem}
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Toolbar (hidden on print) ──  -->
+<div class="toolbar no-print">
+  <label>{{ t.print_month }}:
+    <select id="selMonth" onchange="navigate()">
+      <option value="">--</option>
+      {% for m in range(1, 13) %}
+      <option value="{{ '%02d' % m }}" {{ 'selected' if month == '%02d' % m or (month and month|int == m) else '' }}>{{ '%02d' % m }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>{{ t.print_year }}:
+    <select id="selYear" onchange="navigate()">
+      <option value="">--</option>
+      {% for y in years %}
+      <option value="{{ y }}" {{ 'selected' if year == y else '' }}>{{ y }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer"><input type="checkbox" id="cbStats" onchange="navigate()" {{ 'checked' if show_stats else '' }}> {{ t.print_with_stats }}</label>
+  <button class="btn-save" onclick="saveDefaults()">{{ t.print_save_defaults }}</button>
+  <button class="btn-print" onclick="window.print()">{{ t.print_print }}</button>
+</div>
+
+<!-- ── Page header ── -->
+<div class="page-hdr">
+  <span class="page-hdr-title">{{ t.print_cost_title }}</span>
+  <span class="page-hdr-sub">{{ month_name }} {{ year }} &middot; {{ vehicle.plate if vehicle else filter_vehicle }}</span>
+</div>
+
+<!-- ── Sender / Recipient ── -->
+<div class="addr-row">
+  <div class="addr-sender" contenteditable="true" id="edSender">{{ invoice_sender|safe }}</div>
+  <div class="addr-recipient" contenteditable="true" id="edRecipient">{{ invoice_recipient|safe }}</div>
+</div>
+
+<!-- ── Date ── -->
+<div class="date-block">
+  <div>{{ t.print_date }}:<br><strong>{{ now }}</strong></div>
+  <div style="margin-top:0.3rem">{{ t.print_billing_month }}:<br><strong>{{ month_name }} {{ year }}</strong></div>
+</div>
+
+<!-- ── Cover letter ── -->
+<div class="letter-text" contenteditable="true" id="edIntro">{{ invoice_intro|safe }}</div>
+
+<div class="letter-text" contenteditable="true" id="edMeter">{{ invoice_meter_text|safe }}</div>
+
+<!-- ── Info box ── -->
+<div class="info-box">
+  <div class="info-col">
+    <div class="info-row"><span class="info-label">{{ t.print_plate }}:</span><span class="info-val">{{ vehicle.plate if vehicle else filter_vehicle }}</span></div>
+    <div class="info-row"><span class="info-label">{{ t.print_vehicle }}:</span><span class="info-val">{{ vehicle.model if vehicle and vehicle.model else '--' }}</span></div>
+    <div class="info-row"><span class="info-label">{{ t.print_vin }}:</span><span class="info-val">{{ vehicle.vin if vehicle and vehicle.vin else '--' }}</span></div>
+    <div class="info-row" style="margin-top:0.4rem"><span class="info-label" style="font-weight:700">{{ t.print_meter }}:</span><span class="info-val" contenteditable="true" id="edMeterInfo">{{ invoice_meter_info|safe }}</span></div>
+  </div>
+  <div class="info-col">
+    <div class="info-row"><span class="info-label">{{ t.print_year }}:</span><span class="info-val">{{ year }}</span></div>
+    <div class="info-row"><span class="info-label">{{ t.print_month }}:</span><span class="info-val">{{ month_name }}</span></div>
+    <div class="info-row"><span class="info-label">{{ t.print_electricity_price }}:</span><span class="info-val">{{ '%.2f' % pauschale_kwh }} EUR/kWh</span></div>
+    <div class="info-row" style="margin-top:0.4rem"><span class="info-label" style="font-size:9pt">{{ t.print_flat_rate }} {{ year }} = {{ '%.2f' % pauschale_kwh }} EUR/kWh</span></div>
+    <div class="info-row"><span class="info-label" contenteditable="true" id="edTariffRef" style="font-size:9pt;min-width:auto">{{ invoice_tariff_ref|safe }}</span></div>
+  </div>
+</div>
+
+<!-- ── Summary ── -->
+<div class="summary-box">
+  {{ t.print_cost_summary|replace('{0}', month_name)|replace('{1}', year|string) }}&nbsp; {{ '%.2f' % own_total_cost }} EUR {{ t.print_cost_for }} {{ '%.2f' % own_total_kwh }} kWh.
+</div>
+{% if excluded_sessions %}
+<div class="excluded-note" contenteditable="true" id="edExcluded">{{ t.print_excluded|replace('{0}', excluded_sessions|join(', ')) }}</div>
+{% endif %}
+
+<!-- ── Table (new page) ── -->
+<div class="page-break-before">
+<div class="page-hdr">
+  <span class="page-hdr-title">{{ t.print_cost_title }}</span>
+  <span class="page-hdr-sub">{{ month_name }} {{ year }} &middot; {{ vehicle.plate if vehicle else filter_vehicle }}</span>
+</div>
+</div>
+<table>
+  <thead>
+    <tr>
+      <th class="num">{{ t.print_col_nr }}</th>
+      <th>{{ t.print_col_date }}<br><small>[{{ t.print_col_time }}]</small></th>
+      <th class="num">{{ t.print_col_odometer }}</th>
+      <th class="num">{{ t.print_col_meter_start }}<br><small>[kWh]</small></th>
+      <th class="num">{{ t.print_col_meter_end }}<br><small>[kWh]</small></th>
+      <th class="num">{{ t.print_col_charged }}<br><small>[kWh]</small></th>
+      <th class="num">{{ t.print_col_price }}<br><small>[ct/kWh]</small></th>
+      <th class="num">{{ t.print_col_cost }}<br><small>[€]</small></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for s in sessions %}
+    {% if not s.is_external %}
+    <tr>
+      <td class="num">{{ s.session_number or loop.index }}</td>
+      <td>{{ s.start_fmt }}<br><small>{{ s.start_time_fmt or '' }}–{{ s.end_time_fmt or '' }}</small></td>
+      <td class="num">{{ '%d' % s.odometer if s.odometer else '--' }}</td>
+      <td class="num">{{ '%.2f' % s.meter_start if s.meter_start else '--' }}</td>
+      <td class="num">{{ '%.2f' % s.meter_end if s.meter_end else '--' }}</td>
+      <td class="num">{{ '%.2f' % s.total_kwh if s.total_kwh else '--' }}</td>
+      <td class="num">{{ '%.1f' % (pauschale_kwh * 100) }}</td>
+      <td class="num">{{ '%.2f' % (s.cost_pauschale if s.cost_pauschale is not none else (s.total_kwh or 0) * pauschale_kwh) }} €</td>
+    </tr>
+    {% endif %}
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr>
+      <td colspan="5">{{ t.common_sum }}</td>
+      <td class="num">{{ '%.2f' % own_total_kwh }}</td>
+      <td></td>
+      <td class="num">{{ '%.2f' % own_total_cost }} €</td>
+    </tr>
+  </tfoot>
+</table>
+
+{% if show_stats and stats_data and stats_data.monthly %}
+<!-- ── Statistics page ── -->
+<div class="page-break-before">
+  <div class="page-hdr">
+    <span class="page-hdr-title">{{ t.print_stats_title }}</span>
+    <span class="page-hdr-sub">{{ month_name }} {{ year }} &middot; {{ vehicle.plate if vehicle else filter_vehicle }}</span>
+  </div>
+
+  <!-- Tiles -->
+  <div class="stat-tiles">
+    <div class="stat-tile">
+      <div class="stat-tile-label">{{ t.print_stats_energy }}</div>
+      <div class="stat-tile-val">{{ '%.2f' % stats_data.month_kwh }} kWh</div>
+    </div>
+    <div class="stat-tile">
+      <div class="stat-tile-label">{{ t.print_stats_distance }}</div>
+      <div class="stat-tile-val">{{ '%.0f' % stats_data.month_dist }} km</div>
+    </div>
+    <div class="stat-tile">
+      <div class="stat-tile-label">{{ t.print_stats_monthly_cost }}</div>
+      <div class="stat-tile-val">{{ '%.2f' % stats_data.month_cost }} €</div>
+    </div>
+  </div>
+
+  <div style="font-size:7pt;color:#777;margin-bottom:1rem;font-style:italic">{{ t.print_stats_hint }}</div>
+
+  <!-- Charts grid -->
+  <div class="chart-grid">
+    <div class="chart-card">
+      <div class="chart-title">{{ t.print_stats_odometer_12m }}</div>
+      <canvas id="chartOdo"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">{{ t.print_stats_wallbox_kwh }}</div>
+      <canvas id="chartKwh"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">{{ t.print_stats_consumption_100km }}</div>
+      <canvas id="chartCons"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">{{ t.print_stats_cost_100km }}</div>
+      <canvas id="chartCost"></canvas>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- ── Data info page ── -->
+<div class="page-break-before">
+  <div class="page-hdr">
+    <span class="page-hdr-title">{{ t.print_data_info_title }}</span>
+    <span class="page-hdr-sub">{{ vehicle.plate if vehicle else filter_vehicle }}</span>
+  </div>
+  <div class="letter-text" contenteditable="true" id="edDataInfo">{{ invoice_data_info|safe }}</div>
+</div>
+
+<!-- Footer rendered via @page @bottom-center on every printed page -->
+<div class="footer">{{ t.print_footer }} &middot; v{{ version }} — {{ t.print_footer_generated }} {{ now }}</div>
+
+{% if show_stats %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+{% endif %}
+
+<script>
+function navigate() {
+  const m = document.getElementById('selMonth').value;
+  const y = document.getElementById('selYear').value;
+  const stats = document.getElementById('cbStats').checked;
+  const params = new URLSearchParams(window.location.search);
+  if (m) params.set('month', m); else params.delete('month');
+  if (y) params.set('year', y); else params.delete('year');
+  if (stats) params.set('stats', '1'); else params.delete('stats');
+  params.delete('vehicle');
+  window.location.search = params.toString();
+}
+
+async function saveDefaults() {
+  const data = {
+    invoice_sender: document.getElementById('edSender').innerHTML,
+    invoice_recipient: document.getElementById('edRecipient').innerHTML,
+    invoice_intro: document.getElementById('edIntro').innerHTML,
+    invoice_meter_text: document.getElementById('edMeter').innerHTML,
+    invoice_meter_info: document.getElementById('edMeterInfo').innerHTML,
+    invoice_tariff_ref: document.getElementById('edTariffRef').innerHTML,
+    invoice_data_info: document.getElementById('edDataInfo').innerHTML
+  };
+  const res = await fetch('/api/settings', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data)
+  });
+  if (res.ok) alert('{{ t.print_defaults_saved }}');
+  else alert('{{ t.print_save_error }}');
+}
+
+{% if show_stats and stats_data and stats_data.monthly %}
+// ── Statistics Charts (B/W for print) ──
+(function() {
+  const labels = {{ stats_data.monthly | map(attribute='label') | list | tojson }};
+  const dataKwh = {{ stats_data.monthly | map(attribute='kwh') | list | tojson }};
+  const dataOdo = {{ stats_data.monthly | map(attribute='odo') | list | tojson }};
+  const dataCons = {{ stats_data.monthly | map(attribute='cons_100') | list | tojson }};
+  const dataCost = {{ stats_data.monthly | map(attribute='cost_100') | list | tojson }};
+
+  // Data label plugin — show value on top of each bar/point
+  const dlPlugin = {
+    id: 'dlPlugin',
+    afterDatasetsDraw(chart) {
+      const { ctx } = chart;
+      chart.data.datasets.forEach((ds, di) => {
+        const meta = chart.getDatasetMeta(di);
+        meta.data.forEach((el, i) => {
+          const v = ds.data[i];
+          if (v == null) return;
+          ctx.save();
+          ctx.font = '600 12px sans-serif';
+          ctx.fillStyle = '#000';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          const fmt = v >= 1000 ? Math.round(v).toLocaleString('de-DE') : (Number.isInteger(v) ? String(v) : v.toFixed(1));
+          ctx.fillText(fmt, el.x, el.y - 4);
+          ctx.restore();
+        });
+      });
+    }
+  };
+
+  const chartOpts = {
+    responsive: true, maintainAspectRatio: false,
+    animation: false, devicePixelRatio: 2,
+    layout: { padding: { top: 18, bottom: 5, right: 5 } },
+    plugins: { legend: { display: false }, tooltip: { enabled: false } },
+    scales: {
+      x: { grid: { color: '#ddd' }, ticks: { font: { size: 10 }, maxRotation: 45, color: '#222' } },
+      y: { grid: { color: '#ddd' }, ticks: { font: { size: 10 }, color: '#222' } }
+    }
+  };
+  const barOpts = {
+    ...chartOpts,
+    scales: { ...chartOpts.scales, y: { ...chartOpts.scales.y, beginAtZero: true } }
+  };
+
+  const lineDset = { borderColor: '#000', backgroundColor: 'rgba(0,0,0,0.08)', fill: true, borderWidth: 1.5, tension: 0.3, pointRadius: 3, pointBackgroundColor: '#000', spanGaps: true };
+  const barDset = { backgroundColor: 'rgba(0,0,0,0.55)', borderColor: '#000', borderWidth: 1 };
+
+  new Chart(document.getElementById('chartOdo'), {
+    type: 'line',
+    data: { labels, datasets: [{ ...lineDset, data: dataOdo }] },
+    options: chartOpts,
+    plugins: [dlPlugin]
+  });
+
+  new Chart(document.getElementById('chartKwh'), {
+    type: 'bar',
+    data: { labels, datasets: [{ ...barDset, data: dataKwh }] },
+    options: barOpts,
+    plugins: [dlPlugin]
+  });
+
+  new Chart(document.getElementById('chartCons'), {
+    type: 'bar',
+    data: { labels, datasets: [{ ...barDset, data: dataCons }] },
+    options: barOpts,
+    plugins: [dlPlugin]
+  });
+
+  new Chart(document.getElementById('chartCost'), {
+    type: 'bar',
+    data: { labels, datasets: [{ ...barDset, data: dataCost }] },
+    options: barOpts,
+    plugins: [dlPlugin]
+  });
+
+})();
+{% endif %}
+
+</script>
+
+</body>
+</html>

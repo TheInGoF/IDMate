@@ -1,0 +1,3016 @@
+<!DOCTYPE html>
+<html lang="{{ current_lang|lower }}">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'><rect width='128' height='128' rx='28' fill='%230E1B2C'/><circle cx='38' cy='34' r='6' fill='%231DE9B6'/><rect x='32' y='46' width='12' height='56' rx='3' fill='%23E8EEF7'/><rect x='56' y='34' width='44' height='68' rx='10' fill='none' stroke='%23E8EEF7' stroke-width='6'/><rect x='72' y='26' width='12' height='10' rx='2' fill='%23E8EEF7'/><rect x='64' y='58' width='28' height='36' rx='4' fill='%231DE9B6'/><path d='M80 62 l-10 16 h8 l-4 12 14 -18 h-8 z' fill='%230E1B2C'/></svg>">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0d1117">
+  <title>ID·Mate — {{ t.nav_admin }}</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9/dist/leaflet.css">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d1117;color:#e6edf3}
+
+    /* Header + Burger */
+    .hdr{display:flex;align-items:center;padding:0.5rem 1rem;border-bottom:1px solid #21262d;height:45px;max-width:1200px;margin:0 auto;position:sticky;top:0;z-index:1000;background:#0d1117}
+    .hdr h1{font-size:1rem;font-weight:600;flex:1;margin:0}
+    
+
+
+    .burger{background:none;border:none;color:#8b949e;font-size:1.4rem;cursor:pointer;padding:0.2rem 0.4rem;line-height:1}
+    .burger:hover{color:#e6edf3}
+    .menu-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000}
+    .menu-overlay.open{display:block}
+    .menu{position:fixed;top:0;right:-260px;width:260px;height:100%;background:#161b22;border-left:1px solid #30363d;z-index:10001;transition:right .25s ease;padding:1rem 0}
+    .menu.open{right:0}
+    .menu a{display:block;padding:0.8rem 1.2rem;color:#e6edf3;text-decoration:none;font-size:0.95rem;border-bottom:1px solid #21262d}
+    .menu a:hover{background:#21262d}
+    .menu .close-btn{text-align:right;padding:0.4rem 1rem;color:#8b949e;cursor:pointer;font-size:1.2rem}
+
+    .content{max-width:900px;margin:0 auto;padding:0.8rem}
+
+    /* Tabs */
+    .tabs{display:flex;gap:0;border-bottom:1px solid #30363d;margin-bottom:1rem;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+    .tabs::-webkit-scrollbar{display:none}
+    .tab{padding:0.5rem 0.7rem;cursor:pointer;color:#8b949e;font-size:0.8rem;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;flex-shrink:0}
+    .tab:hover{color:#e6edf3}
+    .tab.active{color:#58a6ff;border-bottom-color:#58a6ff}
+    .tab-content{display:none}
+    .tab-content.active{display:block}
+
+    /* List items */
+    /* Fahrtenbuch Listen — Grid-Struktur */
+    .item{display:grid;align-items:center;gap:0 0.4rem;padding:0.4rem 0.3rem;border-bottom:1px solid #21262d;font-size:0.85rem}
+    .item:hover{background:#161b22;border-radius:4px}
+    /* Einfache Liste: Name | Anzahl | Aktionen */
+    .item.item-simple{grid-template-columns:1fr 80px auto}
+    /* Zweck-Liste: Farbe | Name | Privat | Main | Anzahl | Aktionen */
+    .item.item-purpose{grid-template-columns:26px 1fr 58px 50px 80px auto}
+    .item .name{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .item .count{color:#484f58;font-size:0.75rem;text-align:right;white-space:nowrap}
+    .item .actions{display:flex;gap:0.3rem;justify-content:flex-end}
+    .item .chk-lbl{font-size:0.7rem;color:#8b949e;display:flex;align-items:center;gap:0.2rem;cursor:pointer;white-space:nowrap}
+    .color-swatch{display:inline-block;width:14px;height:14px;border-radius:3px;cursor:pointer;border:1px solid rgba(255,255,255,0.15);flex-shrink:0}
+    .color-swatch:hover{border-color:rgba(255,255,255,0.4)}
+    .btn-sm{padding:0.2rem 0.5rem;border-radius:4px;border:1px solid #30363d;background:#161b22;color:#8b949e;font-size:0.7rem;cursor:pointer}
+    .btn-sm:hover{background:#21262d;color:#e6edf3}
+    .btn-sm.danger{border-color:#da3633;color:#da3633}
+    .btn-sm.danger:hover{background:#da3633;color:#fff}
+
+    /* Inline edit */
+    .edit-input{background:#0d1117;color:#e6edf3;border:1px solid #58a6ff;border-radius:4px;padding:0.2rem 0.4rem;font-size:0.8rem;width:160px}
+
+    /* Modal */
+    .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;justify-content:center;align-items:center}
+    .modal-bg.open{display:flex}
+    .modal{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:1.2rem;max-width:450px;width:90%}
+    .modal h3{font-size:1rem;margin-bottom:0.8rem;color:#e6edf3}
+    .modal p{font-size:0.85rem;color:#8b949e;margin-bottom:0.8rem;line-height:1.4}
+    .modal .warn{color:#da3633;font-weight:600;font-size:0.85rem;margin-bottom:0.6rem}
+    .modal input,.modal select{width:100%;padding:0.4rem 0.6rem;border-radius:6px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.85rem;margin-bottom:0.6rem}
+    .modal input:focus,.modal select:focus{border-color:#58a6ff;outline:none}
+    .modal .btns{display:flex;gap:0.5rem;justify-content:flex-end;margin-top:0.6rem}
+    .modal .btns button{padding:0.4rem 0.8rem;border-radius:6px;border:1px solid #30363d;font-size:0.85rem;cursor:pointer}
+    .modal .btn-cancel{background:#21262d;color:#e6edf3}
+    .modal .btn-danger{background:#da3633;border-color:#da3633;color:#fff}
+    .modal .btn-danger:disabled{opacity:.4;cursor:not-allowed}
+    .modal .btn-primary{background:#238636;border-color:#238636;color:#fff}
+
+    /* Location detail */
+    .loc-detail{border:1px solid #30363d;border-radius:8px;padding:0.8rem;margin-top:0.8rem;background:#161b22}
+    .loc-detail h4{font-size:0.9rem;color:#58a6ff;margin-bottom:0.6rem}
+    .loc-map{width:100%;height:200px;border-radius:6px;margin-bottom:0.6rem}
+    .loc-fields{display:grid;grid-template-columns:1fr 1fr;gap:0.4rem}
+    .loc-field label{font-size:0.7rem;color:#484f58;display:block}
+    .loc-field input,.loc-field select{width:100%;padding:0.3rem 0.4rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.8rem}
+    .loc-field input:focus,.loc-field select:focus{border-color:#58a6ff;outline:none}
+    .loc-save{margin-top:0.6rem;text-align:right}
+
+    /* Add new */
+    .add-row{display:flex;gap:0.5rem;margin-bottom:0.8rem;align-items:center}
+    .add-row input{flex:1;padding:0.4rem 0.6rem;border-radius:6px;border:1px solid #30363d;background:#161b22;color:#e6edf3;font-size:0.85rem}
+    .add-row input:focus{border-color:#58a6ff;outline:none}
+    .add-row button{padding:0.4rem 0.8rem;border-radius:6px;border:1px solid #238636;background:#238636;color:#fff;font-size:0.85rem;cursor:pointer}
+
+    /* User management */
+    .user-item{display:flex;align-items:center;gap:0.6rem;padding:0.5rem 0.6rem;border-bottom:1px solid #21262d;font-size:0.85rem}
+    .user-item .uname{flex:1;font-weight:500}
+    .user-item .role{color:#58a6ff;font-size:0.75rem}
+    .user-form{display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap;align-items:center}
+    .user-form input{padding:0.4rem 0.6rem;border-radius:6px;border:1px solid #30363d;background:#161b22;color:#e6edf3;font-size:0.85rem;width:150px}
+    .user-form input:focus{border-color:#58a6ff;outline:none}
+    .user-form label{font-size:0.8rem;color:#8b949e;display:flex;align-items:center;gap:0.3rem}
+    .user-form button{padding:0.4rem 0.8rem;border-radius:6px;border:1px solid #238636;background:#238636;color:#fff;font-size:0.85rem;cursor:pointer}
+
+    /* Password change */
+    .pw-section{border:1px solid #30363d;border-radius:8px;padding:0.8rem;margin-top:1rem;background:#161b22}
+    .pw-section h4{font-size:0.85rem;color:#8b949e;margin-bottom:0.5rem}
+  </style>
+</head>
+<body>
+  <div class="menu-overlay" id="menuOverlay" onclick="toggleMenu()"></div>
+  <div class="menu" id="menu">
+    <div class="close-btn" onclick="toggleMenu()">&times;</div>
+    <a href="/">{{ t.nav_dashboard }}</a>
+    <a href="/trips">{{ t.nav_trips }}</a>
+    <a href="/journeys">{{ t.nav_journeys }}</a>
+    <a href="/analysis">{{ t.nav_analysis }}</a>
+    <a href="/charges">{{ t.nav_charges }}</a>
+    <a href="/admin">{{ t.nav_admin }}</a>
+    <a href="/logout" style="color:#da3633;margin-top:1rem">{{ t.nav_logout }}</a>
+  </div>
+
+  <div class="hdr">
+    <h1><a href="/" style="color:#58a6ff;text-shadow:0 0 8px rgba(88,166,255,0.4);text-decoration:none">ID·Mate</a> — {{ t.nav_admin }}</h1>
+    {% if vehicle_name %}<span style="color:#8b949e;font-size:0.8rem">{{ vehicle_name }}</span>{% endif %}
+    <button class="burger" onclick="toggleMenu()">&#9776;</button>
+  </div>
+
+  <div class="content">
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('tripbook')">{{ t.admin_tab_tripbook }}</div>
+    <div class="tab" onclick="switchTab('geofencing')">{{ t.admin_tab_geofencing }}</div>
+    <div class="tab" onclick="switchTab('routes')">{{ t.admin_tab_routes }}</div>
+    <div class="tab" onclick="switchTab('vehicles')">{{ t.admin_tab_vehicles }}</div>
+    <div class="tab" onclick="switchTab('users')">{{ t.admin_tab_users }}</div>
+    <div class="tab" onclick="switchTab('import')">{{ t.admin_tab_import }}</div>
+    <div class="tab" onclick="switchTab('charges')">{{ t.admin_tab_charges }}</div>
+    <div class="tab" onclick="switchTab('settings')">{{ t.admin_tab_settings }}</div>
+    {% if current_user.is_authenticated and current_user.is_admin %}
+    <div class="tab" onclick="switchTab('telemetry')">{{ t.admin_tab_telemetry }}</div>
+    <div class="tab" onclick="switchTab('database')">{{ t.admin_tab_database }}</div>
+    {% endif %}
+  </div>
+
+  <!-- Import -->
+  <div class="tab-content" id="tab-import">
+    <h3 style="font-size:0.9rem;color:#8b949e;margin-bottom:0.8rem">{{ t.admin_import_trips_title }}</h3>
+    <p style="font-size:0.8rem;color:#484f58;margin-bottom:0.4rem">{{ t.admin_import_trips_columns }}</p>
+    <pre style="font-size:0.7rem;color:#8b949e;background:#0d1117;padding:0.5rem;border-radius:4px;overflow-x:auto;margin-bottom:0.6rem">created,Datum,Uhrzeit Start,Uhrzeit Ende,Start LAT,Start LON,Ende LAT,Ende LON,Start ODO,Ende ODO,Start SOC,Ende SOC,Aussen Temp
+2026-02-02 18:22:00.000000,02.02.2026,17:35,18:22,"51,798600","10,615300","53,802456","10,402803",86,129,,,</pre>
+    <p style="font-size:0.75rem;color:#484f58;margin-bottom:0.6rem">{{ t.admin_import_trips_hint }}</p>
+    <input type="file" id="importFile" accept=".csv,.txt" style="margin-bottom:0.6rem">
+    <button class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem;background:#238636;border-color:#238636;color:#fff" onclick="uploadImport()">{{ t.admin_import_btn }}</button>
+    <div id="importResult" style="font-size:0.85rem;margin-top:0.6rem"></div>
+
+    <hr style="border:none;border-top:1px solid #21262d;margin:1.5rem 0">
+
+    <h3 style="font-size:0.9rem;color:#8b949e;margin-bottom:0.8rem">{{ t.admin_import_charges_title }}</h3>
+    <p style="font-size:0.8rem;color:#484f58;margin-bottom:0.4rem">{{ t.admin_import_trips_columns }}</p>
+    <pre style="font-size:0.7rem;color:#8b949e;background:#0d1117;padding:0.5rem;border-radius:4px;overflow-x:auto;margin-bottom:0.6rem">Datum,Auto,Zaehlerstand_Anfang,Zaehlerstand_Ende,Verbrauch_kWh,dyn_Preis_kWh,dyn_Grundgebuehr_15m,Odometer
+2026-01-15 08:00,ID-ABC,"1234,56","1240,12","5,56","0,2812","0,0048","12345"</pre>
+    <p style="font-size:0.75rem;color:#484f58;margin-bottom:0.6rem">{{ t.admin_import_charges_hint }}</p>
+    <input type="file" id="chargeImportFile" accept=".csv,.txt" style="margin-bottom:0.6rem">
+    <button class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem;background:#238636;border-color:#238636;color:#fff" onclick="uploadChargeImport()">{{ t.admin_import_btn }}</button>
+    <div id="chargeImportResult" style="font-size:0.85rem;margin-top:0.6rem"></div>
+
+    <hr style="border:none;border-top:1px solid #21262d;margin:1.5rem 0">
+
+    <h3 style="font-size:0.9rem;color:#da3633;margin-bottom:0.8rem">{{ t.admin_delete_trips_title }}</h3>
+    <p style="font-size:0.8rem;color:#484f58;margin-bottom:0.6rem">{{ t.admin_delete_trips_desc }}</p>
+    <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
+      <label style="font-size:0.8rem;color:#8b949e">{{ t.admin_from_id }}</label>
+      <input type="number" id="deleteFromId" min="1" style="width:80px;padding:0.3rem;border-radius:4px;border:1px solid #30363d;background:#161b22;color:#e6edf3;font-size:0.8rem">
+      <label style="font-size:0.8rem;color:#8b949e">{{ t.admin_to_id }}</label>
+      <input type="number" id="deleteToId" min="1" style="width:80px;padding:0.3rem;border-radius:4px;border:1px solid #30363d;background:#161b22;color:#e6edf3;font-size:0.8rem">
+      <button class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem;background:#da3633;border-color:#da3633;color:#fff" onclick="deleteRange()">{{ t.common_delete }}</button>
+    </div>
+    <div id="deleteRangeResult" style="font-size:0.85rem;margin-top:0.6rem"></div>
+
+    <hr style="border:none;border-top:1px solid #21262d;margin:1.5rem 0">
+
+    <h3 style="font-size:0.9rem;color:#da3633;margin-bottom:0.8rem">{{ t.admin_delete_charges_title }}</h3>
+    <p style="font-size:0.8rem;color:#484f58;margin-bottom:0.6rem">{{ t.admin_delete_charges_desc }}</p>
+    <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
+      <label style="font-size:0.8rem;color:#8b949e">{{ t.admin_from_id }}</label>
+      <input type="number" id="deleteChargeFromId" min="1" style="width:80px;padding:0.3rem;border-radius:4px;border:1px solid #30363d;background:#161b22;color:#e6edf3;font-size:0.8rem">
+      <label style="font-size:0.8rem;color:#8b949e">{{ t.admin_to_id }}</label>
+      <input type="number" id="deleteChargeToId" min="1" style="width:80px;padding:0.3rem;border-radius:4px;border:1px solid #30363d;background:#161b22;color:#e6edf3;font-size:0.8rem">
+      <button class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem;background:#da3633;border-color:#da3633;color:#fff" onclick="deleteChargeRange()">{{ t.common_delete }}</button>
+    </div>
+    <div id="deleteChargeRangeResult" style="font-size:0.85rem;margin-top:0.6rem"></div>
+
+    <hr style="border:none;border-top:1px solid #21262d;margin:1.5rem 0">
+
+    <div id="gpxImportSection" style="display:none">
+      <h3 style="font-size:0.9rem;color:#8b949e;margin-bottom:0.8rem">{{ t.admin_gpx_import_title }}</h3>
+      <p style="font-size:0.8rem;color:#484f58;margin-bottom:0.6rem">{{ t.admin_gpx_import_desc }}</p>
+      <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-bottom:0.6rem">
+        <label style="font-size:0.8rem;color:#8b949e">{{ t.admin_gpx_vehicle }}</label>
+        <select id="gpxVehicle" style="padding:0.3rem;border-radius:4px;border:1px solid #30363d;background:#161b22;color:#e6edf3;font-size:0.8rem"></select>
+      </div>
+      <input type="file" id="gpxImportFile" accept=".gpx" style="margin-bottom:0.6rem">
+      <button class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem;background:#238636;border-color:#238636;color:#fff" onclick="uploadGpxImport()">{{ t.admin_import_btn }}</button>
+      <div id="gpxImportResult" style="font-size:0.85rem;margin-top:0.6rem"></div>
+    </div>
+    <p onclick="document.getElementById('gpxImportSection').style.display='block';this.style.display='none'" style="font-size:0.7rem;color:#30363d;cursor:pointer;margin-top:0.5rem;user-select:none">···</p>
+
+  </div>
+
+  <!-- Einstellungen -->
+  <div class="tab-content" id="tab-settings">
+    <div style="margin-top:0.2rem">
+      <button class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem;background:#238636;border-color:#238636;color:#fff" onclick="saveSettings()">{{ t.common_save }}</button>
+      <span class="settings-msg" style="font-size:0.8rem;margin-left:0.5rem"></span>
+    </div>
+
+    <hr style="border:0;border-top:1px solid #21262d;margin:1.2rem 0">
+    <h3 style="font-size:0.9rem;color:#8b949e;margin-bottom:0.4rem">{{ t.admin_rescan_title }}</h3>
+    <p style="font-size:0.8rem;color:#484f58;margin-bottom:0.6rem">{{ t.admin_rescan_desc }}</p>
+    <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
+      <label style="font-size:0.8rem;color:#8b949e">{{ t.common_from }}</label>
+      <input type="date" id="rescanFrom" style="padding:0.3rem 0.5rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.82rem">
+      <label style="font-size:0.8rem;color:#8b949e">{{ t.common_to }}</label>
+      <input type="date" id="rescanTo" style="padding:0.3rem 0.5rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.82rem">
+      <button class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem;background:#1f6feb;border-color:#1f6feb;color:#fff" onclick="startRescan()">{{ t.admin_rescan_btn }}</button>
+      <span id="rescanMsg" style="font-size:0.8rem;color:#8b949e"></span>
+    </div>
+
+    <hr style="border:0;border-top:1px solid #21262d;margin:1rem 0">
+    <h3 style="font-size:0.9rem;color:#8b949e;margin-bottom:0.8rem">{{ t.settings_language }}</h3>
+    <div style="display:flex;gap:0.5rem;align-items:center">
+      <select id="setLanguage" style="padding:0.3rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.85rem">
+        <option value="DE" {{ 'selected' if current_lang == 'DE' else '' }}>Deutsch</option>
+        <option value="EN" {{ 'selected' if current_lang == 'EN' else '' }}>English</option>
+      </select>
+      <button class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem;background:#238636;border-color:#238636;color:#fff" onclick="saveSettings()">{{ t.common_save }}</button>
+      <span class="settings-msg" style="font-size:0.8rem;margin-left:0.5rem"></span>
+    </div>
+    <p style="font-size:0.75rem;color:#484f58;margin-top:0.4rem">{{ t.settings_language_hint }}</p>
+
+    <hr style="border:0;border-top:1px solid #21262d;margin:1rem 0">
+    <h3 style="font-size:0.9rem;color:#8b949e;margin-bottom:0.8rem">{{ t.admin_map_style }}</h3>
+    <div style="display:flex;gap:0.5rem;align-items:center">
+      <select id="setMapStyle" style="padding:0.3rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.85rem">
+        <option value="carto_dark">Carto Dark</option>
+        <option value="carto_light">Carto Light</option>
+        <option value="carto_voyager">Carto Voyager</option>
+        <option value="osm">OpenStreetMap</option>
+        <option value="esri_sat">Esri Satellite</option>
+        <option value="esri_topo">Esri Topo</option>
+      </select>
+      <button class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem;background:#238636;border-color:#238636;color:#fff" onclick="saveSettings()">{{ t.common_save }}</button>
+      <span class="settings-msg" style="font-size:0.8rem;margin-left:0.5rem"></span>
+    </div>
+    <p style="font-size:0.75rem;color:#484f58;margin-top:0.4rem">{{ t.admin_map_style_note }}</p>
+    <div id="mapPreview" style="height:150px;border-radius:6px;border:1px solid #21262d;margin-top:0.5rem;overflow:hidden"></div>
+
+  </div>
+
+  <!-- Ladungen -->
+  <div class="tab-content" id="tab-charges">
+    <div class="sub-tabs" style="display:flex;gap:0;margin-bottom:0.8rem;border-bottom:2px solid #21262d">
+      <div class="sub-tab active" onclick="switchSubTab('ch-tariffs')" id="subtab-ch-tariffs" style="padding:0.4rem 1rem;font-size:0.8rem;cursor:pointer;border-bottom:2px solid #58a6ff;margin-bottom:-2px;color:#e6edf3">{{ t.admin_subtab_tariffs }}</div>
+      <div class="sub-tab" onclick="switchSubTab('ch-actions')" id="subtab-ch-actions" style="padding:0.4rem 1rem;font-size:0.8rem;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:#8b949e">{{ t.admin_subtab_actions }}</div>
+      <div class="sub-tab" onclick="switchSubTab('ch-assign')" id="subtab-ch-assign" style="padding:0.4rem 1rem;font-size:0.8rem;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:#8b949e">{{ t.admin_subtab_assign }}</div>
+      <div class="sub-tab" onclick="switchSubTab('ch-readings')" id="subtab-ch-readings" style="padding:0.4rem 1rem;font-size:0.8rem;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:#8b949e">{{ t.admin_subtab_readings }}</div>
+    </div>
+
+    <!-- Sub-Tab: Tarife -->
+    <div id="ch-tariffs">
+      <h3 style="font-size:0.9rem;color:#8b949e;margin-bottom:0.8rem">{{ t.admin_tariff_title }}</h3>
+      <table class="tbl" style="max-width:400px;font-size:0.8rem">
+        <thead><tr><th>{{ t.admin_tariff_valid_from }}</th><th>{{ t.admin_tariff_eur_kwh }}</th><th></th></tr></thead>
+        <tbody id="tariffRows">
+          {% for tr in tariffs %}
+          <tr>
+            <td>{{ tr.valid_from }}</td>
+            <td>{{ '%.4f' % tr.pauschale_kwh }}</td>
+            <td><button class="btn-sm" style="background:#3d1214;border-color:#f85149;color:#f85149;padding:0.1rem 0.4rem" onclick="deleteTariff({{ tr.id }})">&times;</button></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div style="display:flex;gap:0.4rem;align-items:center;margin-top:0.4rem">
+        <input id="newTariffFrom" type="date" style="padding:0.3rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.8rem">
+        <input id="newTariffPrice" type="number" step="0.0001" placeholder="EUR/kWh" style="padding:0.3rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.8rem;width:100px">
+        <button class="btn-sm" style="background:#238636;border-color:#238636;color:#fff;padding:0.3rem 0.6rem" onclick="addTariff()">+</button>
+      </div>
+
+      <hr style="border:0;border-top:1px solid #21262d;margin:1rem 0">
+      <h3 style="font-size:0.9rem;color:#8b949e;margin-bottom:0.4rem">{{ t.admin_session_numbering }}</h3>
+      <div style="display:flex;gap:0.4rem;align-items:center">
+        <input id="sessionStart" type="number" min="1" value="{{ session_start }}" style="width:80px;padding:0.3rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.8rem">
+        <button class="btn-sm" style="background:#238636;border-color:#238636;color:#fff;padding:0.3rem 0.6rem" onclick="saveSessionStart()">{{ t.common_save }}</button>
+      </div>
+      <p style="font-size:0.7rem;color:#484f58;margin-top:0.2rem">{{ t.admin_session_start_desc }}</p>
+
+    </div>
+
+    <!-- Sub-Tab: Aktionen -->
+    <div id="ch-actions" style="display:none">
+      <h3 style="font-size:0.9rem;color:#8b949e;margin-bottom:0.4rem">{{ t.admin_rebuild_title }}</h3>
+      <p style="font-size:0.75rem;color:#484f58;margin-bottom:0.4rem">{{ t.admin_rebuild_desc }}</p>
+      <button class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem;background:#1f6feb;border-color:#1f6feb;color:#fff" onclick="rebuild()">{{ t.admin_rebuild_btn }}</button>
+      <span id="rebuildMsg" style="font-size:0.8rem;margin-left:0.5rem"></span>
+
+      <hr style="border:0;border-top:1px solid #21262d;margin:1rem 0">
+      <h3 style="font-size:0.9rem;color:#8b949e;margin-bottom:0.4rem">{{ t.admin_recalc_distances_title }}</h3>
+      <p style="font-size:0.75rem;color:#484f58;margin-bottom:0.4rem">{{ t.admin_recalc_distances_desc }}</p>
+      <button class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem" onclick="recalcDistances()">{{ t.admin_recalc_distances_btn }}</button>
+      <span id="recalcMsg" style="font-size:0.8rem;margin-left:0.5rem"></span>
+
+      <hr style="border:0;border-top:1px solid #21262d;margin:1rem 0">
+      <h3 style="font-size:0.9rem;color:#8b949e;margin-bottom:0.4rem">{{ t.admin_detect_external_title }}</h3>
+      <p style="font-size:0.75rem;color:#484f58;margin-bottom:0.4rem">{{ t.admin_detect_external_desc }}</p>
+      <button class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem;background:#58a6ff;border-color:#58a6ff;color:#fff" onclick="detectExternal()">{{ t.admin_detect_external_btn }}</button>
+      <span id="detectExtMsg" style="font-size:0.8rem;margin-left:0.5rem"></span>
+
+      <hr style="border:0;border-top:1px solid #21262d;margin:1rem 0">
+      <h3 style="font-size:0.9rem;color:#8b949e;margin-bottom:0.8rem">{{ t.admin_geocoding }}</h3>
+      <p style="font-size:0.75rem;color:#484f58;margin-bottom:0.4rem">{{ t.admin_geocode_desc }}</p>
+      <button class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem;background:#238636;border-color:#238636;color:#fff" onclick="geocodeMissing()">{{ t.admin_geocode_btn }}</button>
+      <span id="geocodeMsg" style="font-size:0.8rem;margin-left:0.5rem"></span>
+
+      <hr style="border:0;border-top:1px solid #21262d;margin:1rem 0">
+      <h3 style="font-size:0.9rem;color:#8b949e;margin-bottom:0.4rem">{{ t.admin_add_external_title }}</h3>
+      <p style="font-size:0.75rem;color:#484f58;margin-bottom:0.4rem">{{ t.admin_add_external_desc }}</p>
+      <div style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;max-width:700px">
+        <input id="extTimestampStart" type="datetime-local" title="{{ t.common_start_time }}" style="padding:0.3rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.8rem">
+        <input id="extTimestampEnd" type="datetime-local" title="{{ t.common_end_time }}" style="padding:0.3rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.8rem">
+        <input id="extKwh" type="number" step="0.01" placeholder="kWh" style="padding:0.3rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.8rem;width:70px">
+        <input id="extCost" type="number" step="0.01" placeholder="EUR" style="padding:0.3rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.8rem;width:70px">
+        <input id="extOdo" type="number" step="1" placeholder="{{ t.common_odometer }}" style="padding:0.3rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.8rem;width:90px">
+        <input id="extNote" placeholder="{{ t.common_note }}" style="padding:0.3rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.8rem;flex:1;min-width:100px">
+      </div>
+      <div style="margin-top:0.4rem">
+        <button class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem;background:#238636;border-color:#238636;color:#fff" onclick="addExternal()">{{ t.common_save }}</button>
+        <span id="extStatus" style="font-size:0.8rem;color:#8b949e;margin-left:0.5rem"></span>
+      </div>
+    </div>
+
+    <!-- Sub-Tab: Zuweisen -->
+    <div id="ch-assign" style="display:none">
+      <h3 style="font-size:0.9rem;color:#8b949e;margin-bottom:0.4rem">{{ t.admin_reassign_title }}</h3>
+      <p style="font-size:0.75rem;color:#484f58;margin-bottom:0.4rem">{{ t.admin_reassign_desc }}</p>
+      <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-bottom:0.6rem">
+        <label style="font-size:0.8rem;color:#8b949e">{{ t.common_from }}</label>
+        <input type="date" id="reassignFrom" style="padding:0.3rem 0.5rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.82rem">
+        <label style="font-size:0.8rem;color:#8b949e">{{ t.common_to }}</label>
+        <input type="date" id="reassignTo" style="padding:0.3rem 0.5rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.82rem">
+        <select id="reassignQuick" onchange="reassignQuickSelect(this.value)" style="padding:0.3rem 0.5rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.82rem">
+          <option value="" disabled selected>{{ t.common_quick_select }}</option>
+          <option value="this_month">{{ t.common_this_month }}</option>
+          <option value="last_month">{{ t.common_last_month }}</option>
+          <option value="90">{{ t.common_90d }}</option>
+          <option value="365">{{ t.common_1y }}</option>
+          <option value="all">{{ t.common_all }}</option>
+        </select>
+        <button class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem;background:#1f6feb;border-color:#1f6feb;color:#fff" onclick="loadReassignCharges()">{{ t.admin_reassign_btn }}</button>
+        <span id="reassignMsg" style="font-size:0.8rem;color:#8b949e"></span>
+      </div>
+      <div id="reassignPanel" style="display:none">
+        <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.5rem;flex-wrap:wrap">
+          <label style="font-size:0.8rem;color:#8b949e"><input type="checkbox" id="reassignSelectAll" onchange="toggleReassignAll(this.checked)" style="accent-color:#58a6ff"> {{ t.common_all }}</label>
+          <span style="color:#30363d">|</span>
+          <select id="reassignTargetVehicle" style="padding:0.3rem 0.5rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.82rem;min-width:160px">
+            <option value="">{{ t.admin_reassign_select_vehicle }}</option>
+          </select>
+          <button class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem;background:#238636;border-color:#238636;color:#fff" onclick="applyReassign()">{{ t.admin_reassign_apply }}</button>
+          <span id="reassignResult" style="font-size:0.8rem"></span>
+        </div>
+        <div style="overflow-x:auto;max-height:400px;overflow-y:auto;border:1px solid #21262d;border-radius:6px">
+          <table style="width:100%;font-size:0.78rem;border-collapse:collapse">
+            <thead>
+              <tr style="position:sticky;top:0;background:#161b22;z-index:2">
+                <th style="width:28px;padding:0.3rem"></th>
+                <th style="padding:0.3rem;text-align:left;color:#8b949e;font-weight:500">#</th>
+                <th style="padding:0.3rem;text-align:left;color:#8b949e;font-weight:500">{{ t.common_date }}</th>
+                <th style="padding:0.3rem;text-align:left;color:#8b949e;font-weight:500">{{ t.common_vehicle }}</th>
+                <th style="padding:0.3rem;text-align:right;color:#8b949e;font-weight:500">kWh</th>
+                <th style="padding:0.3rem;text-align:left;color:#8b949e;font-weight:500">{{ t.common_location }}</th>
+              </tr>
+            </thead>
+            <tbody id="reassignBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sub-Tab: Readings -->
+    <div id="ch-readings" style="display:none">
+      <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-bottom:0.6rem">
+        <label style="font-size:0.8rem;color:#8b949e">{{ t.common_from }}</label>
+        <input type="date" id="rdFrom" style="padding:0.3rem 0.5rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.82rem">
+        <label style="font-size:0.8rem;color:#8b949e">{{ t.common_to }}</label>
+        <input type="date" id="rdTo" style="padding:0.3rem 0.5rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.82rem">
+        <select id="rdQuick" onchange="rdQuickSelect(this.value)" style="padding:0.3rem 0.5rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.82rem">
+          <option value="" disabled selected>{{ t.common_quick_select }}</option>
+          <option value="this_month">{{ t.common_this_month }}</option>
+          <option value="last_month">{{ t.common_last_month }}</option>
+          <option value="90">{{ t.common_90d }}</option>
+          <option value="all">{{ t.common_all }}</option>
+        </select>
+        <button class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem;background:#1f6feb;border-color:#1f6feb;color:#fff" onclick="loadRdSessions()">{{ t.common_show }}</button>
+        <span id="rdMsg" style="font-size:0.8rem;color:#8b949e"></span>
+      </div>
+      <!-- Session list -->
+      <div id="rdSessionList" style="max-height:200px;overflow-y:auto;border:1px solid #21262d;border-radius:6px;margin-bottom:0.8rem;display:none">
+        <table style="width:100%;font-size:0.78rem;border-collapse:collapse">
+          <thead>
+            <tr style="position:sticky;top:0;background:#161b22;z-index:2">
+              <th style="padding:0.3rem;text-align:left;color:#8b949e;font-weight:500">#</th>
+              <th style="padding:0.3rem;text-align:left;color:#8b949e;font-weight:500">{{ t.common_date }}</th>
+              <th style="padding:0.3rem;text-align:left;color:#8b949e;font-weight:500">{{ t.common_vehicle }}</th>
+              <th style="padding:0.3rem;text-align:right;color:#8b949e;font-weight:500">kWh</th>
+              <th style="padding:0.3rem;text-align:left;color:#8b949e;font-weight:500">{{ t.common_location }}</th>
+            </tr>
+          </thead>
+          <tbody id="rdSessionBody"></tbody>
+        </table>
+      </div>
+      <!-- Readings detail -->
+      <div id="rdDetail" style="display:none">
+        <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem">
+          <h3 id="rdDetailTitle" style="font-size:0.85rem;color:#58a6ff;margin:0"></h3>
+          <button class="btn-sm" style="font-size:0.75rem" onclick="closeRdDetail()">{{ t.common_cancel }}</button>
+        </div>
+        <div style="overflow-x:auto;border:1px solid #21262d;border-radius:6px">
+          <table style="width:100%;font-size:0.75rem;border-collapse:collapse">
+            <thead>
+              <tr style="background:#161b22">
+                <th style="padding:0.3rem;color:#8b949e;font-weight:500;text-align:left">Timestamp</th>
+                <th style="padding:0.3rem;color:#8b949e;font-weight:500;text-align:left">{{ t.common_vehicle }}</th>
+                <th style="padding:0.3rem;color:#8b949e;font-weight:500;text-align:right">Meter Start</th>
+                <th style="padding:0.3rem;color:#8b949e;font-weight:500;text-align:right">Meter End</th>
+                <th style="padding:0.3rem;color:#8b949e;font-weight:500;text-align:right">kWh</th>
+                <th style="padding:0.3rem;color:#8b949e;font-weight:500;text-align:right">{{ t.charge_detail_col_price }}</th>
+                <th style="padding:0.3rem;color:#8b949e;font-weight:500;text-align:right">{{ t.charge_detail_col_base_fee }}</th>
+                <th style="padding:0.3rem;color:#8b949e;font-weight:500;text-align:right">{{ t.common_odometer }}</th>
+                <th style="padding:0.3rem;width:28px"></th>
+              </tr>
+            </thead>
+            <tbody id="rdBody"></tbody>
+          </table>
+        </div>
+        <div style="margin-top:0.5rem;display:flex;gap:0.5rem;align-items:center">
+          <button class="btn-sm" style="border-style:dashed;color:#8b949e" onclick="rdInsertRow()">+ Reading</button>
+          <button class="btn-sm" style="background:#238636;border-color:#238636;color:#fff;padding:0.3rem 0.8rem" onclick="rdSave()">{{ t.common_save }} &amp; Rebuild</button>
+          <span id="rdSaveMsg" style="font-size:0.8rem"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fahrtzwecke -->
+  <!-- Fahrtenbuch (Zwecke + Ziele + Gründe) -->
+  <div class="tab-content active" id="tab-tripbook">
+    <div class="sub-tabs" style="display:flex;gap:0;margin-bottom:0.8rem;border-bottom:2px solid #21262d">
+      <div class="sub-tab active" onclick="switchSubTab('tb-purposes')" id="subtab-tb-purposes" style="padding:0.4rem 1rem;font-size:0.8rem;cursor:pointer;border-bottom:2px solid #58a6ff;margin-bottom:-2px;color:#e6edf3">{{ t.admin_subtab_purposes }}</div>
+      <div class="sub-tab" onclick="switchSubTab('tb-destinations')" id="subtab-tb-destinations" style="padding:0.4rem 1rem;font-size:0.8rem;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:#8b949e">{{ t.admin_subtab_destinations }}</div>
+      <div class="sub-tab" onclick="switchSubTab('tb-reasons')" id="subtab-tb-reasons" style="padding:0.4rem 1rem;font-size:0.8rem;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:#8b949e">{{ t.admin_subtab_reasons }}</div>
+    </div>
+
+    <div id="tb-purposes">
+      <div class="add-row">
+        <input id="addPurpose" placeholder="{{ t.admin_add_purpose_placeholder }}">
+        <input id="addPurposeColor" type="color" value="#8b949e" style="width:32px;height:28px;padding:0;border:1px solid #30363d;border-radius:4px;background:#161b22;cursor:pointer">
+        <label style="font-size:0.75rem;color:#8b949e;display:flex;align-items:center;gap:0.2rem"><input type="checkbox" id="addPurposePrivat"> {{ t.admin_private }}</label>
+        <button onclick="addPurpose()">+</button>
+      </div>
+      <div id="purposeList"></div>
+      <div style="margin-top:1rem;padding-top:0.8rem;border-top:1px solid #21262d">
+        <label style="font-size:0.8rem;color:#8b949e;display:block;margin-bottom:0.4rem">{{ t.admin_default_purpose }} <span style="color:#484f58;font-size:0.72rem">({{ t.admin_default_purpose_hint }})</span></label>
+        <div style="display:flex;gap:0.5rem;align-items:center">
+          <select id="defaultTripPurpose" style="padding:0.35rem 0.5rem;border-radius:6px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.85rem;flex:1">
+            <option value="">{{ t.admin_no_default }}</option>
+          </select>
+          <button onclick="saveDefaultTripPurpose()" style="padding:0.35rem 0.8rem;border-radius:6px;border:none;background:#238636;color:#fff;font-size:0.8rem;cursor:pointer">{{ t.common_save }}</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="tb-destinations" style="display:none">
+      <div class="add-row">
+        <input id="addDest" placeholder="{{ t.admin_add_dest_placeholder }}">
+        <button onclick="addValue('destination', 'addDest')">+</button>
+      </div>
+      <div id="destList"></div>
+    </div>
+
+    <div id="tb-reasons" style="display:none">
+      <div class="add-row">
+        <input id="addReason" placeholder="{{ t.admin_add_reason_placeholder }}">
+        <button onclick="addValue('visit_reason', 'addReason')">+</button>
+      </div>
+      <div id="reasonList"></div>
+    </div>
+  </div>
+
+  <!-- Geofencing (Fahrten + Ladestationen) -->
+  <div class="tab-content" id="tab-geofencing">
+    <div class="sub-tabs" style="display:flex;gap:0;margin-bottom:0.8rem;border-bottom:2px solid #21262d">
+      <div class="sub-tab active" onclick="switchSubTab('geo-trips')" id="subtab-geo-trips" style="padding:0.4rem 1rem;font-size:0.8rem;cursor:pointer;border-bottom:2px solid #58a6ff;margin-bottom:-2px;color:#e6edf3">{{ t.admin_subtab_locations }}</div>
+      <div class="sub-tab" onclick="switchSubTab('geo-charges')" id="subtab-geo-charges" style="padding:0.4rem 1rem;font-size:0.8rem;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:#8b949e">{{ t.admin_subtab_chargestations }}</div>
+      <div class="sub-tab" onclick="switchSubTab('geo-operators')" id="subtab-geo-operators" style="padding:0.4rem 1rem;font-size:0.8rem;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:#8b949e">{{ t.admin_subtab_operators }}</div>
+    </div>
+
+    <div id="geo-trips">
+      <button class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem;background:#238636;border-color:#238636;color:#fff;margin-bottom:0.6rem" onclick="newLocation()">{{ t.admin_new_location }}</button>
+      <div id="locList"></div>
+      <div id="locDetail"></div>
+    </div>
+
+    <div id="geo-charges" style="display:none">
+      <p style="font-size:0.8rem;color:#484f58;margin-bottom:0.6rem">
+        {{ t.admin_charge_geofences_desc }}
+      </p>
+      <button class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem;background:#238636;border-color:#238636;color:#fff;margin-bottom:0.6rem" onclick="newChargeLoc()">{{ t.admin_new_charge_location }}</button>
+      <div id="chargeLocList"></div>
+      <div id="chargeLocDetail"></div>
+    </div>
+
+    <div id="geo-operators" style="display:none">
+      <p style="font-size:0.8rem;color:#484f58;margin-bottom:0.6rem">
+        {{ t.admin_operators_desc }}
+      </p>
+      <button class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem;background:#238636;border-color:#238636;color:#fff;margin-bottom:0.6rem" onclick="newOperator()">{{ t.admin_new_operator }}</button>
+      <div id="operatorList"></div>
+      <div id="operatorDetail"></div>
+    </div>
+  </div>
+
+  <!-- Routen-Regeln -->
+  <div class="tab-content" id="tab-routes">
+    <h3 style="font-size:0.9rem;color:#8b949e;margin-bottom:0.8rem">{{ t.admin_routes_title }}</h3>
+    <p style="font-size:0.8rem;color:#484f58;margin-bottom:0.6rem">
+      {{ t.admin_routes_desc }}
+    </p>
+    <div style="display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;margin-bottom:0.8rem">
+      <select id="ruleFrom" style="padding:0.3rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.8rem"></select>
+      <span style="color:#8b949e">&rarr;</span>
+      <select id="ruleTo" style="padding:0.3rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.8rem"></select>
+      <span style="color:#8b949e">=</span>
+      <input id="rulePurpose" placeholder="{{ t.admin_route_purpose }}" style="width:120px;padding:0.3rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.8rem" list="rulePurposeList">
+      <datalist id="rulePurposeList"></datalist>
+      <input id="ruleDest" placeholder="{{ t.admin_route_dest }}" style="width:110px;padding:0.3rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.8rem">
+      <input id="ruleReason" placeholder="{{ t.admin_route_reason }}" style="width:100px;padding:0.3rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.8rem">
+      <button class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem;background:#238636;border-color:#238636;color:#fff" onclick="createRule()">+</button>
+    </div>
+    <div id="ruleList"></div>
+  </div>
+
+
+  <!-- Fahrzeuge -->
+  <div class="tab-content" id="tab-vehicles">
+    <h3 style="font-size:0.9rem;color:#8b949e;margin-bottom:0.8rem">{{ t.admin_vehicles_title }}</h3>
+    <p style="font-size:0.8rem;color:#484f58;margin-bottom:0.8rem">
+      {{ t.admin_vehicles_desc }}
+    </p>
+    <div style="display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;margin-bottom:0.8rem">
+      <input id="vehName" placeholder="{{ t.admin_vehicle_name }}" style="width:100px;padding:0.3rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.8rem">
+      <input id="vehModel" placeholder="{{ t.admin_vehicle_model }}" style="width:100px;padding:0.3rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.8rem">
+      <input id="vehVin" placeholder="VIN" style="width:140px;padding:0.3rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.8rem">
+      <input id="vehDevice" list="devHints" placeholder="device tag" style="width:130px;padding:0.3rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.8rem">
+      <datalist id="devHints"></datalist>
+      <select id="vehPlate" style="width:130px;padding:0.3rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.8rem">
+        <option value="">{{ t.admin_charges_filter }}</option>
+      </select>
+      <input id="vehBatKwh" type="number" step="0.1" min="1" max="200" placeholder="kWh" title="{{ t.admin_vehicle_bat_kwh }}" style="width:60px;padding:0.3rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.8rem">
+      <button class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem;background:#238636;border-color:#238636;color:#fff" onclick="createVehicle()">+</button>
+    </div>
+    <div id="vehicleList"></div>
+
+    <hr style="border:0;border-top:1px solid #21262d;margin:1rem 0">
+    <h3 style="font-size:0.9rem;color:#8b949e;margin-bottom:0.8rem">{{ t.admin_default_vehicle }}</h3>
+    <p style="font-size:0.8rem;color:#484f58;margin-bottom:0.4rem">{{ t.admin_default_vehicle_desc }}</p>
+    <div style="display:flex;gap:0.5rem;align-items:center">
+      <select id="defaultVehicle" style="padding:0.3rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.85rem"></select>
+      <button class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem;background:#238636;border-color:#238636;color:#fff" onclick="saveDefaultVehicle()">{{ t.admin_save_as_default }}</button>
+      <span id="defaultVehMsg" style="font-size:0.8rem"></span>
+    </div>
+  </div>
+
+  <!-- Benutzer -->
+  <div class="tab-content" id="tab-users">
+    <h3 style="font-size:0.9rem;color:#8b949e;margin-bottom:0.8rem">{{ t.admin_new_user_title }}</h3>
+    <div class="user-form">
+      <input id="newUser" placeholder="{{ t.admin_username }}" autocomplete="off">
+      <input id="newPass" type="password" placeholder="{{ t.admin_password_min }}" autocomplete="new-password">
+      <label><input type="checkbox" id="newAdmin"> Admin</label>
+      <button onclick="createUser()">{{ t.admin_create_user }}</button>
+    </div>
+    <div id="userList"></div>
+
+    <div class="pw-section">
+      <h4>{{ t.admin_change_own_pw }}</h4>
+      <div class="user-form">
+        <input id="oldPw" type="password" placeholder="{{ t.admin_old_password }}" autocomplete="current-password">
+        <input id="newPw" type="password" placeholder="{{ t.admin_new_password }}" autocomplete="new-password">
+        <button onclick="changeOwnPw()">{{ t.admin_change_btn }}</button>
+      </div>
+      <div id="pwMsg" style="font-size:0.8rem;margin-top:0.3rem"></div>
+    </div>
+    <div class="pw-section" style="margin-top:1rem">
+      <h4>{{ t.admin_2fa_title }}</h4>
+      <div style="font-size:0.82rem;color:#8b949e;margin-bottom:0.5rem">{{ t.admin_2fa_desc }}</div>
+      <a href="/setup/2fa" style="display:inline-block;padding:0.45rem 1rem;background:#21262d;border:1px solid #30363d;border-radius:6px;color:#e6edf3;font-size:0.85rem;text-decoration:none">{{ t.admin_2fa_setup }}</a>
+    </div>
+  </div>
+
+  {% if current_user.is_authenticated and current_user.is_admin %}
+  <!-- Datenbank -->
+  <div class="tab-content" id="tab-telemetry">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.8rem">
+      <h3 style="font-size:0.85rem;color:#8b949e;text-transform:uppercase;letter-spacing:0.04em;margin:0">{{ t.admin_telemetry_stick_battery }}</h3>
+      <button class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem" onclick="loadStickBattery()">{{ t.admin_db_refresh }}</button>
+    </div>
+    <p style="font-size:0.75rem;color:#484f58;margin-bottom:0.6rem">{{ t.admin_telemetry_stick_battery_desc }}</p>
+    <div style="background:#0d1117;border:1px solid #21262d;border-radius:8px;padding:0.6rem;height:280px;position:relative">
+      <canvas id="stickBatteryChart" style="max-height:260px"></canvas>
+    </div>
+    <div id="stickBatteryLegend" style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:0.6rem;font-size:0.75rem;color:#8b949e"></div>
+
+    <hr style="border:0;border-top:1px solid #21262d;margin:1.4rem 0">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.8rem">
+      <h3 style="font-size:0.85rem;color:#8b949e;text-transform:uppercase;letter-spacing:0.04em;margin:0">{{ t.admin_telemetry_data_volume }}</h3>
+      <button class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem" onclick="loadDataVolume()">{{ t.admin_db_refresh }}</button>
+    </div>
+    <p style="font-size:0.75rem;color:#484f58;margin-bottom:0.6rem">{{ t.admin_telemetry_data_volume_desc }}</p>
+    <div style="background:#0d1117;border:1px solid #21262d;border-radius:8px;padding:0.6rem;height:280px;position:relative">
+      <canvas id="dataVolumeChart" style="max-height:260px"></canvas>
+    </div>
+    <div id="dataVolumeLegend" style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:0.6rem;font-size:0.75rem;color:#8b949e"></div>
+
+    <hr style="border:0;border-top:1px solid #21262d;margin:1.4rem 0">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.8rem">
+      <h3 style="font-size:0.85rem;color:#8b949e;text-transform:uppercase;letter-spacing:0.04em;margin:0">{{ t.admin_telemetry_carrier_coverage }}</h3>
+      <button class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem" onclick="loadCarrierCoverage()">{{ t.admin_db_refresh }}</button>
+    </div>
+    <p style="font-size:0.75rem;color:#484f58;margin-bottom:0.6rem">{{ t.admin_telemetry_carrier_coverage_desc }}</p>
+    <div id="carrierMap" style="height:420px;background:#0d1117;border:1px solid #21262d;border-radius:8px"></div>
+    <div id="carrierLegend" style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:0.6rem;font-size:0.75rem;color:#8b949e"></div>
+  </div>
+
+  <div class="tab-content" id="tab-database">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.8rem">
+      <span id="dbStatsTs" style="font-size:0.75rem;color:#484f58"></span>
+      <button id="dbRefreshBtn" class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem" onclick="loadDbStats()">{{ t.admin_db_refresh }}</button>
+    </div>
+    <h3 style="font-size:0.85rem;color:#8b949e;margin-bottom:0.5rem;text-transform:uppercase;letter-spacing:0.04em">SQLite</h3>
+    <div id="dbSqlite" style="color:#8b949e;font-size:0.85rem">–</div>
+    <hr style="border:0;border-top:1px solid #21262d;margin:1rem 0">
+    <h3 style="font-size:0.85rem;color:#8b949e;margin-bottom:0.5rem;text-transform:uppercase;letter-spacing:0.04em">InfluxDB</h3>
+    <div id="dbInflux" style="color:#8b949e;font-size:0.85rem">–</div>
+  </div>
+  {% endif %}
+
+  </div><!-- .content -->
+
+  <!-- Delete Modal -->
+  <div class="modal-bg" id="deleteModal">
+    <div class="modal">
+      <h3>{{ t.admin_delete_entry }}</h3>
+      <p class="warn">{{ t.admin_delete_warning }}</p>
+      <p id="delConfirmText"></p>
+      <input id="delConfirm" placeholder="" oninput="checkDeleteConfirm()">
+      <div class="btns">
+        <button class="btn-cancel" onclick="closeModal('deleteModal')">{{ t.common_cancel }}</button>
+        <button class="btn-danger" id="delBtn" disabled onclick="confirmDelete()">{{ t.common_delete }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rename Modal -->
+  <div class="modal-bg" id="renameModal">
+    <div class="modal">
+      <h3>{{ t.admin_rename_title }}</h3>
+      <p><strong id="renameSrc"></strong> {{ t.admin_rename_to }}</p>
+      <input id="renameInput" placeholder="{{ t.admin_rename_placeholder }}">
+      <div class="btns">
+        <button class="btn-cancel" onclick="closeModal('renameModal')">{{ t.common_cancel }}</button>
+        <button class="btn-primary" onclick="confirmRename()">{{ t.admin_rename_btn }}</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <script>
+    const T = {
+      name_position_required: {{ t.admin_js_name_position_required | tojson }},
+      saved: {{ t.admin_js_saved | tojson }},
+      name_required: {{ t.admin_js_name_required | tojson }},
+      confirm_delete_vehicle: {{ t.admin_js_confirm_delete_vehicle | tojson }},
+      saved_reloading: {{ t.admin_js_saved_reloading | tojson }},
+      username_password_required: {{ t.admin_js_username_password_required | tojson }},
+      confirm_delete_user: {{ t.admin_js_confirm_delete_user | tojson }},
+      confirm_disable_2fa: {{ t.admin_js_confirm_disable_2fa | tojson }},
+      prompt_new_password: {{ t.admin_js_prompt_new_password | tojson }},
+      password_changed: {{ t.admin_js_password_changed | tojson }},
+      password_changed_status: {{ t.admin_js_password_changed_status | tojson }},
+      select_file: {{ t.admin_js_select_file | tojson }},
+      import_trips_result: {{ t.admin_js_import_trips_result | tojson }},
+      import_error: {{ t.admin_js_import_error | tojson }},
+      import_charges_result: {{ t.admin_js_import_charges_result | tojson }},
+      import_gpx_result: {{ t.admin_js_import_gpx_result | tojson }},
+      select_gpx_file: {{ t.admin_js_select_gpx_file | tojson }},
+      select_vehicle: {{ t.admin_js_select_vehicle | tojson }},
+      enter_from_to_id: {{ t.admin_js_enter_from_to_id | tojson }},
+      confirm_delete_trips: {{ t.admin_js_confirm_delete_trips | tojson }},
+      trips_deleted: {{ t.admin_js_trips_deleted | tojson }},
+      confirm_delete_readings: {{ t.admin_js_confirm_delete_readings | tojson }},
+      readings_deleted: {{ t.admin_js_readings_deleted | tojson }},
+      select_date_range: {{ t.admin_js_select_date_range | tojson }},
+      scanning: {{ t.admin_js_scanning | tojson }},
+      rescan_result: {{ t.admin_js_rescan_result | tojson }},
+      network_error: {{ t.admin_js_network_error | tojson }},
+      error: {{ t.admin_js_error | tojson }},
+      confirm_delete_rule: {{ t.admin_js_confirm_delete_rule | tojson }},
+      enter_date_price: {{ t.admin_js_enter_date_price | tojson }},
+      confirm_delete_tariff: {{ t.admin_js_confirm_delete_tariff | tojson }},
+      session_start_min: {{ t.admin_js_session_start_min | tojson }},
+      calculating: {{ t.admin_js_calculating | tojson }},
+      done_reloading: {{ t.admin_js_done_reloading | tojson }},
+      searching: {{ t.admin_js_searching | tojson }},
+      detected: {{ t.admin_js_detected | tojson }},
+      no_new: {{ t.admin_js_no_new | tojson }},
+      no_vehicle: {{ t.admin_js_no_vehicle | tojson }},
+      kwh_required: {{ t.admin_js_kwh_required | tojson }},
+      start_end_required: {{ t.admin_js_start_end_required | tojson }},
+      session_saved: {{ t.admin_js_session_saved | tojson }},
+      geocode_started: {{ t.admin_js_geocode_started | tojson }},
+      name_coords_required: {{ t.admin_js_name_coords_required | tojson }},
+      draw_close_polygon: {{ t.admin_js_draw_close_polygon | tojson }},
+      confirm_delete_chargeloc: {{ t.admin_js_confirm_delete_chargeloc | tojson }},
+      min_polygon_points: {{ t.admin_js_min_polygon_points | tojson }},
+      polygon_points: {{ t.admin_js_polygon_points | tojson }},
+      polygon_drawing: {{ t.admin_js_polygon_drawing | tojson }},
+      no_file: {{ t.admin_js_no_file | tojson }},
+      upload_error: {{ t.admin_js_upload_error | tojson }},
+      confirm_delete_operator: {{ t.admin_js_confirm_delete_operator | tojson }},
+      name_required_short: {{ t.admin_js_name_required_short | tojson }},
+      device_not_in_influx: {{ t.admin_js_device_not_in_influx | tojson }},
+      influx_device_tag: {{ t.admin_js_influx_device_tag | tojson }},
+      db_error: {{ t.admin_js_db_error | tojson }},
+      // Common and admin keys used in JS
+      save: {{ t.common_save | tojson }},
+      cancel: {{ t.common_cancel | tojson }},
+      delete_btn: {{ t.common_delete | tojson }},
+      edit: {{ t.common_edit | tojson }},
+      create: {{ t.common_create | tojson }},
+      no_entries: {{ t.admin_no_entries | tojson }},
+      trip_count: {{ t.admin_trip_count | tojson }},
+      trip_count_plural: {{ t.admin_trip_count_plural | tojson }},
+      rename_btn: {{ t.admin_rename_btn_short | tojson }},
+      change_color: {{ t.admin_change_color | tojson }},
+      private: {{ t.admin_private | tojson }},
+      no_locations: {{ t.admin_no_locations | tojson }},
+      visits: {{ t.admin_visits | tojson }},
+      new_location_title: {{ t.admin_new_location_title | tojson }},
+      click_map: {{ t.admin_click_map | tojson }},
+      location_example: {{ t.admin_location_example | tojson }},
+      bg_color: {{ t.admin_bg_color | tojson }},
+      icon_color: {{ t.admin_icon_color | tojson }},
+      radius: {{ t.admin_radius | tojson }},
+      default_reason: {{ t.admin_default_reason | tojson }},
+      latitude: {{ t.admin_latitude | tojson }},
+      longitude: {{ t.admin_longitude | tojson }},
+      visits_count: {{ t.admin_visits_count | tojson }},
+      location_created: {{ t.admin_location_created | tojson }},
+      no_charge_locations: {{ t.admin_no_charge_locations | tojson }},
+      col_country: {{ t.admin_col_country | tojson }},
+      col_operator: {{ t.admin_col_operator | tojson }},
+      new_charge_loc_title: {{ t.admin_new_charge_loc_title | tojson }},
+      shape_circle: {{ t.admin_shape_circle | tojson }},
+      shape_polygon: {{ t.admin_shape_polygon | tojson }},
+      close_polygon: {{ t.admin_close_polygon | tojson }},
+      redraw: {{ t.admin_redraw | tojson }},
+      polygon_hint: {{ t.admin_polygon_hint | tojson }},
+      click_map_short: {{ t.admin_click_map_short | tojson }},
+      country_code: {{ t.admin_country_code | tojson }},
+      no_operator: {{ t.admin_no_operator | tojson }},
+      no_operators_hint: {{ t.admin_no_operators_hint | tojson }},
+      no_operators: {{ t.admin_no_operators | tojson }},
+      col_locations: {{ t.admin_col_locations | tojson }},
+      new_operator_title: {{ t.admin_new_operator_title | tojson }},
+      operator_name_hint: {{ t.admin_operator_name_hint | tojson }},
+      color: {{ t.admin_color | tojson }},
+      icon: {{ t.admin_icon | tojson }},
+      icon_upload: {{ t.admin_icon_upload | tojson }},
+      icon_save_first: {{ t.admin_icon_save_first | tojson }},
+      icon_formats: {{ t.admin_icon_formats | tojson }},
+      note: {{ t.admin_note | tojson }},
+      no_route_rules: {{ t.admin_no_route_rules | tojson }},
+      route_any: {{ t.admin_route_any | tojson }},
+      no_vehicles: {{ t.admin_no_vehicles | tojson }},
+      influx_devices_found: {{ t.admin_influx_devices_found | tojson }},
+      influx_no_devices: {{ t.admin_influx_no_devices | tojson }},
+      charges_filter: {{ t.admin_charges_filter | tojson }},
+      vehicle_bat_kwh: {{ t.admin_vehicle_bat_kwh | tojson }},
+      no_default_vehicle: {{ t.admin_no_default_vehicle | tojson }},
+      admin_only: {{ t.admin_admin_only | tojson }},
+      role_user: {{ t.admin_role_user | tojson }},
+      two_fa_active: {{ t.admin_2fa_active | tojson }},
+      two_fa_inactive: {{ t.admin_2fa_inactive | tojson }},
+      password_btn: {{ t.admin_password_btn | tojson }},
+      two_fa_disable: {{ t.admin_2fa_disable | tojson }},
+      delete_confirm_text: {{ t.admin_delete_confirm_text | tojson }},
+      common_type: {{ t.common_type | tojson }},
+      reassign_no_selection: {{ t.admin_js_reassign_no_selection | tojson }},
+      reassign_confirm: {{ t.admin_js_reassign_confirm | tojson }},
+      reassign_done: {{ t.admin_js_reassign_done | tojson }},
+      reassign_loading: {{ t.admin_js_reassign_loading | tojson }},
+      // DB stats labels
+      db_loading: {{ t.admin_db_loading | tojson }},
+      db_timestamp: {{ t.admin_db_timestamp | tojson }},
+      db_not_configured: {{ t.admin_db_not_configured | tojson }},
+      db_file_size: {{ t.admin_db_file_size | tojson }},
+      db_total_rows: {{ t.admin_db_total_rows | tojson }},
+      db_fragmentation: {{ t.admin_db_fragmentation | tojson }},
+      db_integrity: {{ t.admin_db_integrity | tojson }},
+      db_write_test: {{ t.admin_db_write_test | tojson }},
+      db_storage_size: {{ t.admin_db_storage_size | tojson }},
+      db_last_entry: {{ t.admin_db_last_entry | tojson }},
+      db_points_7d: {{ t.admin_db_points_7d | tojson }},
+      db_tbl_trips: {{ t.admin_db_tbl_trips | tojson }},
+      db_tbl_locations: {{ t.admin_db_tbl_locations | tojson }},
+      db_tbl_charges: {{ t.admin_db_tbl_charges | tojson }},
+      db_tbl_route_rules: {{ t.admin_db_tbl_route_rules | tojson }},
+      db_tbl_users: {{ t.admin_db_tbl_users | tojson }},
+      db_tbl_purpose_meta: {{ t.admin_db_tbl_purpose_meta | tojson }},
+      db_tbl_preset_values: {{ t.admin_db_tbl_preset_values | tojson }},
+      db_tbl_settings: {{ t.admin_db_tbl_settings | tojson }},
+      db_tbl_vehicles: {{ t.admin_db_tbl_vehicles | tojson }},
+      db_tbl_charge_tariffs: {{ t.admin_db_tbl_charge_tariffs | tojson }},
+      db_tbl_charge_readings: {{ t.admin_db_tbl_charge_readings | tojson }},
+      db_tbl_charge_sessions: {{ t.admin_db_tbl_charge_sessions | tojson }},
+      db_tbl_charge_locations: {{ t.admin_db_tbl_charge_locations | tojson }},
+      db_tbl_gpx_waypoints: {{ t.admin_db_tbl_gpx_waypoints | tojson }},
+      db_tbl_journeys: {{ t.admin_db_tbl_journeys | tojson }},
+      db_tbl_journey_trips: {{ t.admin_db_tbl_journey_trips | tojson }},
+    };
+    const iconPaths = {
+      pin:      'M12,2C8.13,2,5,5.13,5,9c0,5.25,7,13,7,13s7-7.75,7-13C19,5.13,15.87,2,12,2z M12,11.5c-1.38,0-2.5-1.12-2.5-2.5s1.12-2.5,2.5-2.5s2.5,1.12,2.5,2.5S13.38,11.5,12,11.5z',
+      home:     'M10,20V14H14V20H19V12H22L12,3L2,12H5V20H10Z',
+      office:   'M19,3H5C3.9,3,3,3.9,3,5V19C3,20.1,3.9,21,5,21H19C20.1,21,21,20.1,21,19V5C21,3.9,20.1,3,19,3ZM9,17H7V15H9V17ZM9,13H7V11H9V13ZM9,9H7V7H9V9ZM13,17H11V15H13V17ZM13,13H11V11H13V13ZM13,9H11V7H13V9ZM17,17H15V15H17V17ZM17,13H15V11H17V13ZM17,9H15V7H17V9Z',
+      wrench:   'M22.7,19L13.6,9.9C14.5,7.4,14,4.5,11.9,2.4C9.4-0.1,5.5-0.7,2.4,1.3L7,5.9L5.9,7L1.3,2.3C-0.7,5.5-0.1,9.4,2.4,11.9C4.5,14,7.4,14.5,9.9,13.6L19,22.7C19.4,23.1,20,23.1,20.4,22.7L22.7,20.4C23.1,20,23.1,19.4,22.7,19Z',
+      bolt:     'M7,2V13H10V22L17,11H13L17,2H7Z',
+      shopping: 'M17,18C15.89,18,15,18.89,15,20A2,2,0,0,0,17,22A2,2,0,0,0,19,20C19,18.89,18.1,18,17,18M1,2V4H3L6.6,11.59L5.24,14.04C5.09,14.32,5,14.65,5,15A2,2,0,0,0,7,17H19V15H7.42A0.25,0.25,0,0,1,7.17,14.75L7.2,14.63L8.1,13H15.55C16.3,13,16.96,12.58,17.3,11.97L20.88,5.5C20.96,5.34,21,5.17,21,5A1,1,0,0,0,20,4H5.21L4.27,2M7,18C5.89,18,5,18.89,5,20A2,2,0,0,0,7,22A2,2,0,0,0,9,20C9,18.89,8.1,18,7,18Z',
+      tree:     'M17,8C8,10,5.9,16.17,3.82,21.34L5.71,22L6.66,19.7C7.14,19.87,7.64,20,8,20C19,20,22,3,22,3C21,5,14,5.25,9,6.25C4,7.25,2,11.5,2,13.5C2,15.5,3.75,17.25,3.75,17.25C7,8,17,8,17,8Z',
+      fuel:     'M19.77,7.23L19.78,7.22L16.06,3.5L15,4.56L17.11,6.67C16.17,7.03,15.5,7.93,15.5,9A2.5,2.5,0,0,0,18,11.5C18.36,11.5,18.69,11.42,19,11.29V18.5A1,1,0,0,1,18,19.5A1,1,0,0,1,17,18.5V14A2,2,0,0,0,15,12H14V5A2,2,0,0,0,12,3H6A2,2,0,0,0,4,5V21H14V13.5H15.5V18.5A2.5,2.5,0,0,0,18,21A2.5,2.5,0,0,0,20.5,18.5V9C20.5,8.31,20.22,7.68,19.77,7.23ZM18,10A1,1,0,0,1,17,9A1,1,0,0,1,18,8A1,1,0,0,1,19,9A1,1,0,0,1,18,10ZM12,10H6V5H12V10Z',
+      star:     'M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z',
+      person:   'M12,4A4,4,0,0,1,16,8A4,4,0,0,1,12,12A4,4,0,0,1,8,8A4,4,0,0,1,12,4M12,14C16.42,14,20,15.79,20,18V20H4V18C4,15.79,7.58,14,12,14Z',
+      cat:      'M12,8L10.67,8.09C9.81,7.07,7.4,4.5,5,4.5C5,4.5,3.03,7.8,4.62,10.63C4.22,11.44,4,12.31,4,13C4,14.64,4.5,15.84,5.5,16.7L5.5,19L8.5,19C9.5,19,10.03,18.38,10.5,18H13.5C13.97,18.38,14.5,19,15.5,19L18.5,19L18.5,16.7C19.5,15.84,20,14.64,20,13C20,12.31,19.78,11.44,19.38,10.63C20.97,7.8,19,4.5,19,4.5C16.6,4.5,14.19,7.07,13.33,8.09L12,8ZM9,11A1,1,0,0,1,10,12A1,1,0,0,1,9,13A1,1,0,0,1,8,12A1,1,0,0,1,9,11ZM15,11A1,1,0,0,1,16,12A1,1,0,0,1,15,13A1,1,0,0,1,14,12A1,1,0,0,1,15,11Z',
+    };
+    const iconNames = Object.keys(iconPaths);
+
+    function iconSvgHtml(key, size, color) {
+      const p = iconPaths[key] || iconPaths.pin;
+      return `<svg viewBox="0 0 24 24" width="${size}" height="${size}"><path d="${p}" fill="${color}"/></svg>`;
+    }
+
+    function mkPinIcon(color, iconKey, iconColor) {
+      const inner = iconSvgHtml(iconKey || 'pin', 15, iconColor || 'white');
+      return L.divIcon({ className: '', html: `<div style="width:24px;height:24px;border-radius:5px;background:${color};display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.7)">${inner}</div>`, iconSize:[24,24], iconAnchor:[12,12] });
+    }
+
+    let data = {};
+    let pendingAction = {};
+    let locMap = null;
+    let clMap = null;
+    let clMarker = null;
+    let clCircle = null;
+    let locCircle = null;
+    let locMarker = null;
+
+    function iconOptions(selected) {
+      return iconNames.map(ic =>
+        `<option value="${ic}" ${ic===selected?'selected':''}>${ic}</option>`
+      ).join('');
+    }
+
+    function updateIconPreview() {
+      const sel = document.getElementById('locIcon');
+      const prev = document.getElementById('iconPreview');
+      const colorEl = document.getElementById('locIconColor');
+      const color = colorEl ? colorEl.value : 'white';
+      if (sel && prev) prev.innerHTML = iconSvgHtml(sel.value, 22, color);
+    }
+
+    // ── Menu ──
+    function toggleMenu() {
+      document.getElementById('menu').classList.toggle('open');
+      document.getElementById('menuOverlay').classList.toggle('open');
+    }
+
+    // ── Tabs ──
+    const TAB_NAMES = ['tripbook', 'geofencing', 'routes', 'vehicles', 'users', 'import', 'charges', 'settings'{% if current_user.is_authenticated and current_user.is_admin %}, 'telemetry', 'database'{% endif %}];
+
+    // Sub-tab groups: parent tab → list of sub-tab IDs
+    const SUB_TAB_GROUPS = {
+      'tripbook': ['tb-purposes', 'tb-destinations', 'tb-reasons'],
+      'geofencing': ['geo-trips', 'geo-charges', 'geo-operators'],
+      'charges': ['ch-tariffs', 'ch-actions', 'ch-assign', 'ch-readings']
+    };
+
+    function switchTab(name) {
+      // Compat: alte Tab-Namen umleiten
+      if (name === 'purposes' || name === 'destinations' || name === 'reasons') {
+        const sub = 'tb-' + name;
+        name = 'tripbook';
+        setTimeout(() => switchSubTab(sub), 50);
+      }
+      if (name === 'locations') { name = 'geofencing'; setTimeout(() => switchSubTab('geo-trips'), 50); }
+      if (name === 'chargelocations') { name = 'geofencing'; setTimeout(() => switchSubTab('geo-charges'), 50); }
+
+      document.querySelectorAll('.tabs > .tab').forEach((t, i) => {
+        const isActive = TAB_NAMES[i] === name;
+        t.classList.toggle('active', isActive);
+        if (isActive) t.scrollIntoView({behavior:'smooth', inline:'center', block:'nearest'});
+      });
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      document.getElementById('tab-' + name).classList.add('active');
+      if (name === 'geofencing' && locMap) setTimeout(() => locMap.invalidateSize(), 100);
+      if (name === 'geofencing' && clMap) setTimeout(() => clMap.invalidateSize(), 100);
+      if (name === 'settings') setTimeout(() => { initMapPreview(); updateMapPreview(document.getElementById('setMapStyle').value); previewMap.invalidateSize(); }, 100);
+      if (name === 'vehicles') loadVehicles();
+      if (name === 'users') loadUsers();
+      if (name === 'database' && !document.getElementById('dbSqlite').dataset.loaded) loadDbStats();
+      if (name === 'telemetry') { loadStickBattery(); loadDataVolume(); loadCarrierCoverage(); }
+    }
+
+    function switchSubTab(id) {
+      // Find which group this sub-tab belongs to
+      for (const [, subs] of Object.entries(SUB_TAB_GROUPS)) {
+        if (!subs.includes(id)) continue;
+        subs.forEach(t => {
+          const el = document.getElementById(t);
+          const tab = document.getElementById('subtab-' + t);
+          if (t === id) {
+            el.style.display = '';
+            tab.style.borderBottomColor = '#58a6ff';
+            tab.style.color = '#e6edf3';
+          } else {
+            el.style.display = 'none';
+            tab.style.borderBottomColor = 'transparent';
+            tab.style.color = '#8b949e';
+          }
+        });
+        break;
+      }
+      if (id === 'geo-trips' && locMap) setTimeout(() => locMap.invalidateSize(), 100);
+      if (id === 'geo-charges' && clMap) setTimeout(() => clMap.invalidateSize(), 100);
+      if (id === 'geo-operators') renderOperators();
+    }
+
+    // ── Load data ──
+    async function load() {
+      const [res, vehRes] = await Promise.all([
+        fetch('/api/admin/values'),
+        fetch('/api/vehicles')
+      ]);
+      data = await res.json();
+      renderPurposes();
+      renderDefaultPurposeSelect();
+      renderDestinations();
+      renderReasons();
+      renderLocations();
+      // GPX vehicle dropdown
+      const vehicles = await vehRes.json();
+      const gpxSel = document.getElementById('gpxVehicle');
+      if (gpxSel) {
+        gpxSel.innerHTML = vehicles.map(v =>
+          `<option value="${v.plate}">${v.name || v.plate}</option>`
+        ).join('');
+      }
+    }
+
+    function renderList(items, container, field, allValues) {
+      const el = document.getElementById(container);
+      if (!items.length) {
+        el.innerHTML = '<p style="color:#484f58;font-size:0.85rem;padding:0.5rem">' + T.no_entries + '</p>';
+        return;
+      }
+      el.innerHTML = items.map(item => `
+        <div class="item item-simple">
+          <span class="name">${esc(item.name)}</span>
+          <span class="count">${item.count} ${item.count !== 1 ? T.trip_count_plural : T.trip_count}</span>
+          <div class="actions">
+            <button class="btn-sm" onclick="openRename('${field}', '${esc(item.name)}')">${T.rename_btn}</button>
+            <button class="btn-sm danger" onclick="openDelete('${field}', '${esc(item.name)}')">${T.delete_btn}</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderPurposes() {
+      const el = document.getElementById('purposeList');
+      const meta = data.purpose_meta || [];
+      const usage = {};
+      (data.purposes || []).forEach(p => { usage[p.name] = p.count; });
+      if (!meta.length && !(data.purposes||[]).length) {
+        el.innerHTML = '<p style="color:#484f58;font-size:0.85rem;padding:0.5rem">' + T.no_entries + '</p>';
+        return;
+      }
+      // Combine: meta entries + any used purposes not in meta
+      const metaNames = new Set(meta.map(m => m.name));
+      const all = [...meta];
+      (data.purposes || []).forEach(p => {
+        if (!metaNames.has(p.name)) all.push({ name: p.name, color: '#8b949e', is_private: 0 });
+      });
+      el.innerHTML = all.map((m, idx) => {
+        const count = usage[m.name] || 0;
+        return `<div class="item item-purpose">
+          <span class="color-swatch" style="background:${m.color}" onclick="this.nextElementSibling.click()" title="${T.change_color}"></span>
+          <input type="color" value="${m.color}" style="position:absolute;opacity:0;width:0;height:0;pointer-events:none"
+                 onchange="this.previousElementSibling.style.background=this.value;updatePurposeMeta('${esc(m.name)}', this.value, ${m.is_private}, ${m.is_main})">
+          <span class="name" style="color:${m.color}">${esc(m.name)}</span>
+          <label class="chk-lbl">
+            <input type="checkbox" ${m.is_private ? 'checked' : ''}
+                   onchange="updatePurposeMeta('${esc(m.name)}', '${m.color}', this.checked ? 1 : 0, ${m.is_main})"> ${T.private}
+          </label>
+          <label class="chk-lbl">
+            <input type="radio" name="mainPurpose" ${m.is_main ? 'checked' : ''}
+                   onchange="updatePurposeMeta('${esc(m.name)}', '${m.color}', ${m.is_private}, 1)"> Main
+          </label>
+          <span class="count">${count} ${count !== 1 ? T.trip_count_plural : T.trip_count}</span>
+          <div class="actions">
+            <button class="btn-sm" onclick="openRename('purpose', '${esc(m.name)}')">${T.rename_btn}</button>
+            <button class="btn-sm danger" onclick="openDelete('purpose', '${esc(m.name)}')">${T.delete_btn}</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+    function renderDestinations() { renderList(data.destinations, 'destList', 'destination'); }
+    function renderReasons() { renderList(data.visit_reasons, 'reasonList', 'visit_reason'); }
+
+    function renderDefaultPurposeSelect() {
+      const sel = document.getElementById('defaultTripPurpose');
+      const current = {{ current_user.default_trip_purpose | tojson }};
+      const meta = data.purpose_meta || [];
+      const used = (data.purposes || []).map(p => p.name);
+      const names = new Set([...meta.map(m => m.name), ...used]);
+      // Keep first "—" option
+      while (sel.options.length > 1) sel.remove(1);
+      names.forEach(n => {
+        const o = new Option(n, n);
+        sel.add(o);
+      });
+      sel.value = current || '';
+    }
+
+    async function saveDefaultTripPurpose() {
+      const val = document.getElementById('defaultTripPurpose').value;
+      await fetch('/api/user/default-trip-purpose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ purpose: val })
+      });
+    }
+
+    function renderLocations() {
+      const el = document.getElementById('locList');
+      if (!data.locations.length) {
+        el.innerHTML = '<p style="color:#484f58;font-size:0.85rem;padding:0.5rem">' + T.no_locations + '</p>';
+        return;
+      }
+      const sorted = [...data.locations].sort((a, b) => a.name.localeCompare(b.name, 'de'));
+      el.innerHTML = sorted.map(loc => `
+        <div style="padding:0.4rem 0.3rem;border-bottom:1px solid #21262d;cursor:pointer;font-size:0.85rem" onclick="showLocation(${loc.id})">
+          <div style="display:flex;align-items:center;gap:0.4rem">
+            <span style="flex:1;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:0.35rem"><span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:4px;background:${loc.color||'#58a6ff'};flex-shrink:0">${iconSvgHtml(loc.icon||'pin',14,loc.icon_color||'white')}</span> ${esc(loc.name)}</span>
+            <button class="btn-sm danger" onclick="event.stopPropagation();openDelete('destination', '${esc(loc.name)}')">${T.delete_btn}</button>
+          </div>
+          <div style="font-size:0.72rem;color:#484f58;margin-top:0.2rem">
+            ${data.location_visits[loc.id] || 0}× ${T.visits}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // ── Location Detail ──
+    function showLocation(locId) {
+      const loc = data.locations.find(l => l.id === locId);
+      if (!loc) return;
+
+      const detail = document.getElementById('locDetail');
+      detail.innerHTML = `
+        <div class="loc-detail">
+          <h4>${esc(loc.name)}</h4>
+          <div class="loc-map" id="locMap"></div>
+          <div class="loc-fields">
+            <div class="loc-field">
+              <label>Name</label>
+              <input id="locName" value="${esc(loc.name)}">
+            </div>
+            <div class="loc-field">
+              <label>Icon <span id="iconPreview" style="vertical-align:middle">${iconSvgHtml(loc.icon||'pin',22,loc.icon_color||'white')}</span></label>
+              <select id="locIcon" onchange="updateIconPreview()">
+                ${iconOptions(loc.icon)}
+              </select>
+            </div>
+            <div class="loc-field">
+              <label>${T.bg_color}</label>
+              <input id="locColor" type="color" value="${loc.color || '#21262d'}" style="width:100%;height:2rem;padding:0.1rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;cursor:pointer">
+            </div>
+            <div class="loc-field">
+              <label>${T.icon_color}</label>
+              <input id="locIconColor" type="color" value="${loc.icon_color || '#ffffff'}" oninput="updateIconPreview()" style="width:100%;height:2rem;padding:0.1rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;cursor:pointer">
+            </div>
+            <div class="loc-field">
+              <label>${T.radius}</label>
+              <input id="locRadius" type="number" value="${loc.radius_m}" min="50" max="2000" step="50">
+            </div>
+            <div class="loc-field">
+              <label>${T.default_reason}</label>
+              <input id="locReason" value="${esc(loc.default_reason || '')}" list="reasonHints">
+              <datalist id="reasonHints">
+                ${data.default_visit_reasons.map(r => `<option value="${r}">`).join('')}
+              </datalist>
+            </div>
+            <div class="loc-field">
+              <label>${T.latitude}</label>
+              <input id="locLat" type="number" value="${loc.lat}" step="0.000001" readonly style="opacity:.6">
+            </div>
+            <div class="loc-field">
+              <label>${T.longitude}</label>
+              <input id="locLon" type="number" value="${loc.lon}" step="0.000001" readonly style="opacity:.6">
+            </div>
+          </div>
+          <p style="font-size:0.75rem;color:#484f58;margin-top:0.4rem">${T.visits_count.replace('{0}', data.location_visits[loc.id] || 0)}</p>
+          <div class="loc-save">
+            <button class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem;background:#238636;border-color:#238636;color:#fff" onclick="saveLocation(${loc.id})">${T.save}</button>
+          </div>
+        </div>
+      `;
+
+      // Init map
+      setTimeout(() => {
+        if (locMap) locMap.remove();
+        locMap = L.map('locMap', { zoomControl: true, attributionControl: false }).setView([loc.lat, loc.lon], 16);
+        L.tileLayer('{{ map_tile_url }}', { maxZoom: 19 }).addTo(locMap);
+
+        locCircle = L.circle([loc.lat, loc.lon], {
+          radius: loc.radius_m, color: '#58a6ff', fillColor: '#58a6ff', fillOpacity: 0.15, weight: 2
+        }).addTo(locMap);
+
+        locMarker = L.marker([loc.lat, loc.lon], { draggable: true, icon: mkPinIcon(loc.color || '#58a6ff', loc.icon, loc.icon_color) }).addTo(locMap);
+        locMarker.on('dragend', function () {
+          const pos = locMarker.getLatLng();
+          document.getElementById('locLat').value = pos.lat.toFixed(6);
+          document.getElementById('locLon').value = pos.lng.toFixed(6);
+          locCircle.setLatLng(pos);
+        });
+
+        // Update circle on radius change
+        document.getElementById('locRadius').addEventListener('input', function () {
+          locCircle.setRadius(parseInt(this.value) || 200);
+        });
+      }, 50);
+    }
+
+    function newLocation() {
+      const detail = document.getElementById('locDetail');
+      detail.innerHTML = `
+        <div class="loc-detail">
+          <h4>${T.new_location_title}</h4>
+          <div class="loc-map" id="locMap"></div>
+          <p style="font-size:0.75rem;color:#484f58;margin-top:0.2rem;margin-bottom:0.4rem">${T.click_map}</p>
+          <div class="loc-fields">
+            <div class="loc-field"><label>Name</label><input id="locName" value="" placeholder="${T.location_example}"></div>
+            <div class="loc-field"><label>Icon <span id="iconPreview" style="vertical-align:middle">${iconSvgHtml('pin',22,'white')}</span></label>
+              <select id="locIcon" onchange="updateIconPreview()">
+                ${iconOptions('pin')}
+              </select>
+            </div>
+            <div class="loc-field"><label>${T.bg_color}</label>
+              <input id="locColor" type="color" value="#21262d" style="width:100%;height:2rem;padding:0.1rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;cursor:pointer">
+            </div>
+            <div class="loc-field"><label>${T.icon_color}</label>
+              <input id="locIconColor" type="color" value="#ffffff" oninput="updateIconPreview()" style="width:100%;height:2rem;padding:0.1rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;cursor:pointer">
+            </div>
+            <div class="loc-field"><label>${T.radius}</label><input id="locRadius" type="number" value="200" min="50" max="2000" step="50"></div>
+            <div class="loc-field"><label>${T.default_reason}</label><input id="locReason" value=""></div>
+            <div class="loc-field"><label>${T.latitude}</label><input id="locLat" type="number" value="" step="0.000001" readonly style="opacity:.6"></div>
+            <div class="loc-field"><label>${T.longitude}</label><input id="locLon" type="number" value="" step="0.000001" readonly style="opacity:.6"></div>
+          </div>
+          <div class="loc-save">
+            <button class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem;background:#238636;border-color:#238636;color:#fff" onclick="createNewLocation()">${T.create}</button>
+          </div>
+        </div>
+      `;
+
+      setTimeout(() => {
+        if (locMap) locMap.remove();
+        locMap = L.map('locMap', { zoomControl: true, attributionControl: false }).setView([53.55, 10.0], 10);
+        L.tileLayer('{{ map_tile_url }}', { maxZoom: 19 }).addTo(locMap);
+
+        locMap.on('click', function (e) {
+          document.getElementById('locLat').value = e.latlng.lat.toFixed(6);
+          document.getElementById('locLon').value = e.latlng.lng.toFixed(6);
+          if (locMarker) locMap.removeLayer(locMarker);
+          if (locCircle) locMap.removeLayer(locCircle);
+          locMarker = L.marker(e.latlng, { draggable: true, icon: mkPinIcon('#58a6ff', document.getElementById('locIcon')?.value) }).addTo(locMap);
+          const r = parseInt(document.getElementById('locRadius').value) || 200;
+          locCircle = L.circle(e.latlng, { radius: r, color: '#58a6ff', fillColor: '#58a6ff', fillOpacity: 0.15, weight: 2 }).addTo(locMap);
+          locMarker.on('dragend', function () {
+            const pos = locMarker.getLatLng();
+            document.getElementById('locLat').value = pos.lat.toFixed(6);
+            document.getElementById('locLon').value = pos.lng.toFixed(6);
+            locCircle.setLatLng(pos);
+          });
+        });
+
+        document.getElementById('locRadius').addEventListener('input', function () {
+          if (locCircle) locCircle.setRadius(parseInt(this.value) || 200);
+        });
+      }, 50);
+    }
+
+    async function createNewLocation() {
+      const name = document.getElementById('locName').value.trim();
+      const lat = parseFloat(document.getElementById('locLat').value);
+      const lon = parseFloat(document.getElementById('locLon').value);
+      if (!name || isNaN(lat) || isNaN(lon)) { alert(T.name_position_required); return; }
+
+      const res = await fetch('/api/locations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          lat, lon,
+          radius_m: parseInt(document.getElementById('locRadius').value) || 200,
+          icon: document.getElementById('locIcon').value,
+          color: document.getElementById('locColor').value,
+          icon_color: document.getElementById('locIconColor').value,
+          default_reason: document.getElementById('locReason').value,
+        })
+      });
+      if (res.ok) {
+        load();
+        document.getElementById('locDetail').innerHTML = '<p style="color:#3fb950;font-size:0.85rem;padding:0.5rem">' + T.location_created + '</p>';
+      }
+    }
+
+    async function saveLocation(locId) {
+      const res = await fetch(`/api/locations/${locId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: document.getElementById('locName').value,
+          lat: parseFloat(document.getElementById('locLat').value),
+          lon: parseFloat(document.getElementById('locLon').value),
+          radius_m: parseInt(document.getElementById('locRadius').value),
+          icon: document.getElementById('locIcon').value,
+          color: document.getElementById('locColor').value,
+          icon_color: document.getElementById('locIconColor').value,
+          default_reason: document.getElementById('locReason').value,
+        })
+      });
+      if (res.ok) {
+        load();
+        document.getElementById('locDetail').innerHTML = '<p style="color:#3fb950;font-size:0.85rem;padding:0.5rem">' + T.saved + '</p>';
+      }
+    }
+
+    // ── Add purpose ──
+    async function addPurpose() {
+      const name = document.getElementById('addPurpose').value.trim();
+      if (!name) return;
+      const color = document.getElementById('addPurposeColor').value;
+      const is_private = document.getElementById('addPurposePrivat').checked ? 1 : 0;
+      await fetch('/api/purpose-meta', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, color, is_private })
+      });
+      document.getElementById('addPurpose').value = '';
+      document.getElementById('addPurposePrivat').checked = false;
+      load();
+    }
+
+    async function updatePurposeMeta(name, color, is_private, is_main) {
+      await fetch('/api/purpose-meta', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, color, is_private, is_main: is_main || 0 })
+      });
+      load();
+    }
+
+    // ── Add new value (destinations/reasons) ──
+    async function addValue(field, inputId) {
+      const value = document.getElementById(inputId).value.trim();
+      if (!value) return;
+      await fetch('/api/preset-values', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field, value })
+      });
+      document.getElementById(inputId).value = '';
+      load();
+    }
+
+    // ── Rename ──
+    function openRename(field, name) {
+      pendingAction = { field, name };
+      document.getElementById('renameSrc').textContent = name;
+      document.getElementById('renameInput').value = name;
+      document.getElementById('renameModal').classList.add('open');
+      document.getElementById('renameInput').focus();
+    }
+
+    async function confirmRename() {
+      const newName = document.getElementById('renameInput').value.trim();
+      if (!newName) return;
+      await fetch('/api/admin/rename', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field: pendingAction.field, old_name: pendingAction.name, new_name: newName })
+      });
+      closeModal('renameModal');
+      load();
+    }
+
+    // ── Delete ──
+    function openDelete(field, name) {
+      pendingAction = { field, name };
+      document.getElementById('delConfirmText').innerHTML = T.delete_confirm_text.replace('{0}', esc(name));
+      document.getElementById('delConfirm').value = '';
+      document.getElementById('delConfirm').placeholder = name;
+      document.getElementById('delBtn').disabled = true;
+      document.getElementById('deleteModal').classList.add('open');
+      document.getElementById('delConfirm').focus();
+    }
+
+    function checkDeleteConfirm() {
+      const val = document.getElementById('delConfirm').value.trim();
+      document.getElementById('delBtn').disabled = (val !== pendingAction.name);
+    }
+
+    async function confirmDelete() {
+      await fetch('/api/admin/delete-value', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field: pendingAction.field, name: pendingAction.name, confirm: pendingAction.name })
+      });
+      closeModal('deleteModal');
+      load();
+    }
+
+    // ── Helpers ──
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('open');
+    }
+
+    function esc(s) {
+      if (!s) return '';
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    // ── Vehicle management ──
+    const CURRENT_VEH_ID = {{ (active_vehicle.id if active_vehicle else 'null') | tojson }};
+
+    let availDevices = [];
+    let availPlates = [];
+
+    async function loadVehicles() {
+      const [vehRes, filterRes] = await Promise.all([
+        fetch('/api/vehicles'),
+        fetch('/api/vehicles/available-filters')
+      ]);
+      const vehicles = await vehRes.json();
+      const filters = await filterRes.json();
+      availDevices = filters.devices || [];
+      availPlates = filters.plates || [];
+      const influxDevices = new Set(filters.influx_devices || []);
+
+      // Datalist für device-Tags — InfluxDB-Tags zuerst, mit Marker
+      const devHints = document.getElementById('devHints');
+      devHints.innerHTML = availDevices.map(d =>
+        `<option value="${esc(d)}">${influxDevices.has(d) ? '✓ ' + d + ' (InfluxDB)' : d}</option>`
+      ).join('');
+
+      // Hinweis wenn InfluxDB-Tags bekannt sind
+      if (influxDevices.size > 0) {
+        const hint = document.createElement('p');
+        hint.style.cssText = 'font-size:0.75rem;color:#3fb950;margin-bottom:0.4rem';
+        hint.textContent = T.influx_devices_found + ' ' + [...influxDevices].join(', ');
+        document.getElementById('vehicleList').before(hint);
+      } else if (filters.influx_devices !== undefined) {
+        const hint = document.createElement('p');
+        hint.style.cssText = 'font-size:0.75rem;color:#f85149;margin-bottom:0.4rem';
+        hint.textContent = T.influx_no_devices;
+        document.getElementById('vehicleList').before(hint);
+      }
+
+      const plateSel = document.getElementById('vehPlate');
+      plateSel.innerHTML = '<option value="">' + T.charges_filter + '</option>' +
+        availPlates.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
+
+      function devInput(vid, cur) {
+        const missing = cur && !influxDevices.has(cur) && influxDevices.size > 0;
+        const border = missing ? '1px solid #f85149' : '1px solid #30363d';
+        const title = missing ? T.device_not_in_influx.replace('{0}', cur).replace('{1}', [...influxDevices].join(', ')) : T.influx_device_tag;
+        return `<input list="devHints" value="${esc(cur || '')}" placeholder="device tag" title="${title}" style="width:100px;padding:0.25rem 0.4rem;border-radius:4px;border:${border};background:#0d1117;color:#e6edf3;font-size:0.8rem" onchange="updateVehicle(${vid}, 'device', this.value)">`;
+      }
+      function plateOpts(cur) {
+        return '<option value="">—</option>' +
+          availPlates.map(p => `<option value="${esc(p)}" ${p === cur ? 'selected' : ''}>${esc(p)}</option>`).join('');
+      }
+
+      const el = document.getElementById('vehicleList');
+      el.innerHTML = vehicles.map(v => `
+        <div style="display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0;border-bottom:1px solid #21262d;font-size:0.85rem;flex-wrap:wrap">
+          <input value="${esc(v.name || '')}" placeholder="Name" style="width:80px;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.8rem" onchange="updateVehicle(${v.id}, 'name', this.value)">
+          <input value="${esc(v.model || '')}" placeholder="${T.admin_vehicle_model}" style="width:80px;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.8rem" onchange="updateVehicle(${v.id}, 'model', this.value)">
+          ${devInput(v.id, v.device)}
+          <select style="width:120px;padding:0.25rem 0.3rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.8rem" onchange="updateVehicle(${v.id}, 'plate', this.value)">${plateOpts(v.plate)}</select>
+          <input value="${esc(v.vin || '')}" placeholder="VIN" style="width:120px;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#484f58;font-size:0.7rem" onchange="updateVehicle(${v.id}, 'vin', this.value)">
+          <input type="number" step="0.1" min="1" max="200" value="${v.battery_capacity_kwh || ''}" placeholder="kWh" title="${T.vehicle_bat_kwh}" style="width:60px;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.8rem" onchange="updateVehicle(${v.id}, 'battery_capacity_kwh', this.value || null)">
+          <button class="btn-sm danger" style="margin-left:auto" onclick="deleteVehicle(${v.id}, '${esc(v.name || v.plate)}')">${T.delete_btn}</button>
+        </div>
+      `).join('') || '<p style="color:#484f58;font-size:0.85rem">' + T.no_vehicles + '</p>';
+
+      // Default-Fahrzeug Dropdown
+      const sel = document.getElementById('defaultVehicle');
+      sel.innerHTML = '<option value="">' + T.no_default_vehicle + '</option>' +
+        vehicles.map(v => `<option value="${v.id}" ${v.id === CURRENT_VEH_ID ? 'selected' : ''}>${esc(v.name || v.plate)}</option>`).join('');
+    }
+
+    async function createVehicle() {
+      const name = document.getElementById('vehName').value.trim();
+      const model = document.getElementById('vehModel').value.trim();
+      const vin = document.getElementById('vehVin').value.trim();
+      const device = document.getElementById('vehDevice').value;
+      const plate = document.getElementById('vehPlate').value;
+      const batKwh = document.getElementById('vehBatKwh').value;
+      if (!name) return alert(T.name_required);
+      const res = await fetch('/api/vehicles', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ name, model, vin, device, plate: plate || name, battery_capacity_kwh: batKwh || null })
+      });
+      const d = await res.json();
+      if (d.error) return alert(d.error);
+      document.getElementById('vehName').value = '';
+      document.getElementById('vehModel').value = '';
+      document.getElementById('vehVin').value = '';
+      document.getElementById('vehDevice').value = '';
+      document.getElementById('vehPlate').value = '';
+      document.getElementById('vehBatKwh').value = '';
+      loadVehicles();
+    }
+
+    async function updateVehicle(id, field, value) {
+      await fetch(`/api/vehicles/${id}`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ [field]: value })
+      });
+    }
+
+    async function deleteVehicle(id, name) {
+      if (!confirm(T.confirm_delete_vehicle.replace('{0}', name))) return;
+      await fetch(`/api/vehicles/${id}`, { method: 'DELETE' });
+      loadVehicles();
+    }
+
+    async function saveDefaultVehicle() {
+      const vid = document.getElementById('defaultVehicle').value;
+      const res = await fetch('/api/user/default-vehicle', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ vehicle_id: vid || null })
+      });
+      const msg = document.getElementById('defaultVehMsg');
+      if (res.ok) {
+        msg.style.color = '#3fb950';
+        msg.textContent = T.saved_reloading;
+        setTimeout(() => location.reload(), 1000);
+      } else {
+        msg.style.color = '#f85149';
+        msg.textContent = T.error;
+      }
+    }
+
+    // ── User management ──
+    async function loadUsers() {
+      const res = await fetch('/api/admin/users');
+      if (res.status === 403) {
+        document.getElementById('userList').innerHTML = '<p style="color:#da3633;font-size:0.85rem">' + T.admin_only + '</p>';
+        return;
+      }
+      const users = await res.json();
+      const el = document.getElementById('userList');
+      el.innerHTML = users.map(u => `
+        <div class="user-item">
+          <span class="uname">${esc(u.username)}</span>
+          <span class="role">${u.is_admin ? 'Admin' : T.role_user}</span>
+          <span class="role" style="color:${u.totp_enabled ? '#3fb950' : '#484f58'}">${u.totp_enabled ? T.two_fa_active : T.two_fa_inactive}</span>
+          <div class="actions">
+            <button class="btn-sm" onclick="resetPw(${u.id}, '${esc(u.username)}')">${T.password_btn}</button>
+            ${u.totp_enabled ? `<button class="btn-sm" onclick="disable2fa(${u.id})">${T.two_fa_disable}</button>` : ''}
+            <button class="btn-sm danger" onclick="deleteUser(${u.id}, '${esc(u.username)}')">${T.delete_btn}</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function createUser() {
+      const username = document.getElementById('newUser').value.trim();
+      const password = document.getElementById('newPass').value;
+      const is_admin = document.getElementById('newAdmin').checked;
+
+      if (!username || !password) return alert(T.username_password_required);
+
+      const res = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password, is_admin })
+      });
+      const data = await res.json();
+      if (data.error) return alert(data.error);
+
+      document.getElementById('newUser').value = '';
+      document.getElementById('newPass').value = '';
+      document.getElementById('newAdmin').checked = false;
+      loadUsers();
+    }
+
+    async function deleteUser(id, name) {
+      if (!confirm(T.confirm_delete_user.replace('{0}', name))) return;
+      const res = await fetch(`/api/admin/users/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.error) return alert(data.error);
+      loadUsers();
+    }
+
+    async function disable2fa(id) {
+      if (!confirm(T.confirm_disable_2fa)) return;
+      const res = await fetch('/api/user/2fa/disable', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: id })
+      });
+      const data = await res.json();
+      if (data.error) return alert(data.error);
+      loadUsers();
+    }
+
+    async function resetPw(id, name) {
+      const pw = prompt(T.prompt_new_password.replace('{0}', name));
+      if (!pw) return;
+      const res = await fetch(`/api/admin/users/${id}/password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pw })
+      });
+      const data = await res.json();
+      if (data.error) return alert(data.error);
+      alert(T.password_changed);
+    }
+
+    async function changeOwnPw() {
+      const old_password = document.getElementById('oldPw').value;
+      const new_password = document.getElementById('newPw').value;
+      const msg = document.getElementById('pwMsg');
+
+      const res = await fetch('/api/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ old_password, new_password })
+      });
+      const data = await res.json();
+      if (data.error) {
+        msg.style.color = '#f85149';
+        msg.textContent = data.error;
+      } else {
+        msg.style.color = '#3fb950';
+        msg.textContent = T.password_changed_status;
+        document.getElementById('oldPw').value = '';
+        document.getElementById('newPw').value = '';
+      }
+    }
+
+    async function uploadImport() {
+      const file = document.getElementById('importFile').files[0];
+      if (!file) { alert(T.select_file); return; }
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch('/api/import', { method: 'POST', body: form });
+      const d = await res.json();
+      const el = document.getElementById('importResult');
+      if (d.ok) {
+        el.innerHTML = `<span style="color:#3fb950">${T.import_trips_result.replace('{0}', d.imported).replace('{1}', d.skipped)}</span>`;
+      } else {
+        el.innerHTML = `<span style="color:#da3633">${d.error || T.import_error}</span>`;
+      }
+    }
+
+    async function uploadChargeImport() {
+      const file = document.getElementById('chargeImportFile').files[0];
+      if (!file) { alert(T.select_file); return; }
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch('/api/charge/import', { method: 'POST', body: form });
+      const d = await res.json();
+      const el = document.getElementById('chargeImportResult');
+      if (d.ok) {
+        el.innerHTML = `<span style="color:#3fb950">${T.import_charges_result.replace('{0}', d.imported).replace('{1}', d.skipped)}</span>`;
+      } else {
+        el.innerHTML = `<span style="color:#da3633">${d.error || T.import_error}</span>`;
+      }
+    }
+
+    async function uploadGpxImport() {
+      const file = document.getElementById('gpxImportFile').files[0];
+      if (!file) { alert(T.select_gpx_file); return; }
+      const vehicle = document.getElementById('gpxVehicle').value;
+      if (!vehicle) { alert(T.select_vehicle); return; }
+      const form = new FormData();
+      form.append('file', file);
+      form.append('vehicle', vehicle);
+      const res = await fetch('/api/gpx-import', { method: 'POST', body: form });
+      const d = await res.json();
+      const el = document.getElementById('gpxImportResult');
+      if (d.ok) {
+        el.innerHTML = `<span style="color:#3fb950">${T.import_gpx_result.replace('{0}', d.imported)}</span>`;
+      } else {
+        el.innerHTML = `<span style="color:#da3633">${d.error || T.import_error}</span>`;
+      }
+    }
+
+    async function deleteRange() {
+      const fromId = parseInt(document.getElementById('deleteFromId').value);
+      const toId = parseInt(document.getElementById('deleteToId').value);
+      if (isNaN(fromId) || isNaN(toId)) { alert(T.enter_from_to_id); return; }
+      if (!confirm(T.confirm_delete_trips.replace('{0}', fromId).replace('{1}', toId))) return;
+      const res = await fetch('/api/trips/delete-range', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: fromId, to: toId })
+      });
+      const d = await res.json();
+      const el = document.getElementById('deleteRangeResult');
+      if (d.ok) {
+        el.innerHTML = `<span style="color:#3fb950">${T.trips_deleted.replace('{0}', d.deleted)}</span>`;
+      } else {
+        el.innerHTML = `<span style="color:#da3633">${d.error || T.error}</span>`;
+      }
+    }
+
+    async function deleteChargeRange() {
+      const fromId = parseInt(document.getElementById('deleteChargeFromId').value);
+      const toId = parseInt(document.getElementById('deleteChargeToId').value);
+      if (isNaN(fromId) || isNaN(toId)) { alert(T.enter_from_to_id); return; }
+      if (!confirm(T.confirm_delete_readings.replace('{0}', fromId).replace('{1}', toId))) return;
+      const res = await fetch('/api/charges/delete-range', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: fromId, to: toId })
+      });
+      const d = await res.json();
+      const el = document.getElementById('deleteChargeRangeResult');
+      if (d.ok) {
+        el.innerHTML = `<span style="color:#3fb950">${T.readings_deleted.replace('{0}', d.deleted)}</span>`;
+      } else {
+        el.innerHTML = `<span style="color:#da3633">${d.error || T.error}</span>`;
+      }
+    }
+
+    // ── Routen-Regeln ──
+    let routeRules = [];
+
+    async function loadRules() {
+      const [rulesRes, locsRes] = await Promise.all([
+        fetch('/api/route-rules').then(r => r.json()),
+        fetch('/api/locations').then(r => r.json())
+      ]);
+      routeRules = rulesRes;
+
+      // Dropdowns befuellen
+      const opts = locsRes.map(l => `<option value="${l.id}">${esc(l.name)}</option>`).join('');
+      document.getElementById('ruleFrom').innerHTML = '<option value="">' + T.route_any + '</option>' + opts;
+      document.getElementById('ruleTo').innerHTML = '<option value="">' + T.route_any + '</option>' + opts;
+
+      // Purpose-Hinweise
+      const plEl = document.getElementById('rulePurposeList');
+      if (data && data.purposes) {
+        plEl.innerHTML = data.purposes.map(p => `<option value="${p.name}">`).join('');
+      }
+
+      // Liste rendern
+      const el = document.getElementById('ruleList');
+      if (!rulesRes.length) {
+        el.innerHTML = '<p style="color:#484f58;font-size:0.85rem">' + T.no_route_rules + '</p>';
+        return;
+      }
+      el.innerHTML = rulesRes.map(r => `
+        <div class="item">
+          <span class="name">${r.from_name ? esc(r.from_name) : '* ' + T.route_any} &rarr; ${r.to_name ? esc(r.to_name) : '* ' + T.route_any}</span>
+          <span class="count">${esc(r.purpose)}${r.destination ? ' · ' + esc(r.destination) : ''}${r.visit_reason ? ' · ' + esc(r.visit_reason) : ''}</span>
+          <div class="actions">
+            <button class="btn-sm danger" onclick="deleteRule(${r.id})">${T.delete_btn}</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function createRule() {
+      const res = await fetch('/api/route-rules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from_location_id: document.getElementById('ruleFrom').value ? parseInt(document.getElementById('ruleFrom').value) : null,
+          to_location_id: document.getElementById('ruleTo').value ? parseInt(document.getElementById('ruleTo').value) : null,
+          purpose: document.getElementById('rulePurpose').value,
+          destination: document.getElementById('ruleDest').value,
+          visit_reason: document.getElementById('ruleReason').value,
+        })
+      });
+      if (res.ok) {
+        document.getElementById('rulePurpose').value = '';
+        document.getElementById('ruleDest').value = '';
+        document.getElementById('ruleReason').value = '';
+        loadRules();
+      } else {
+        const d = await res.json();
+        alert(d.error || T.error);
+      }
+    }
+
+    async function deleteRule(id) {
+      if (!confirm(T.confirm_delete_rule)) return;
+      await fetch(`/api/route-rules/${id}`, { method: 'DELETE' });
+      loadRules();
+    }
+
+    // ── Einstellungen ──
+    const MAP_TILES = {
+      carto_dark:    'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+      carto_light:   'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+      carto_voyager: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+      osm:           'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      esri_sat:      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      esri_topo:     'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}'
+    };
+    let previewMap = null, previewLayer = null;
+
+    function initMapPreview() {
+      if (previewMap) return;
+      previewMap = L.map('mapPreview', {zoomControl:false, attributionControl:false}).setView([51.16, 10.45], 5);
+      previewLayer = L.tileLayer(MAP_TILES.carto_dark, {maxZoom:19}).addTo(previewMap);
+    }
+
+    function updateMapPreview(style) {
+      if (!previewMap) initMapPreview();
+      const url = MAP_TILES[style] || MAP_TILES.carto_dark;
+      previewMap.removeLayer(previewLayer);
+      previewLayer = L.tileLayer(url, {maxZoom:19}).addTo(previewMap);
+    }
+
+    document.getElementById('setMapStyle').addEventListener('change', function() {
+      updateMapPreview(this.value);
+    });
+
+    async function loadSettings() {
+      const res = await fetch('/api/settings');
+      const s = await res.json();
+      if (s.language) document.getElementById('setLanguage').value = s.language;
+      if (s.map_style) document.getElementById('setMapStyle').value = s.map_style;
+    }
+
+    // Rescan-Datumfelder vorbelegen: Von = vor 30 Tagen, Bis = heute
+    (function() {
+      const _fmtLocal = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      const today = _fmtLocal(new Date());
+      const from30 = _fmtLocal(new Date(Date.now() - 30*86400000));
+      document.getElementById('rescanFrom').value = from30;
+      document.getElementById('rescanTo').value = today;
+    })();
+
+    async function startRescan() {
+      const dateFrom = document.getElementById('rescanFrom').value;
+      const dateTo = document.getElementById('rescanTo').value;
+      if (!dateFrom || !dateTo) return alert(T.select_date_range);
+      const msg = document.getElementById('rescanMsg');
+      msg.style.color = '#8b949e';
+      msg.textContent = T.scanning;
+      try {
+        const res = await fetch('/api/admin/rescan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ date_from: dateFrom, date_to: dateTo })
+        });
+        const d = await res.json();
+        if (res.ok) {
+          msg.style.color = '#3fb950';
+          msg.textContent = T.rescan_result.replace('{0}', d.trips_found).replace('{1}', d.charges_found);
+        } else {
+          msg.style.color = '#f85149';
+          msg.textContent = d.error || T.error;
+        }
+      } catch (e) {
+        msg.style.color = '#f85149';
+        msg.textContent = T.network_error;
+      }
+    }
+
+    async function saveSettings() {
+      const lang = document.getElementById('setLanguage').value;
+      const mapStyle = document.getElementById('setMapStyle').value;
+      const data = { language: lang, map_style: mapStyle };
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      const msgs = document.querySelectorAll('.settings-msg');
+      msgs.forEach(msg => {
+        if (res.ok) {
+          msg.style.color = '#3fb950';
+          msg.textContent = T.saved;
+        } else {
+          msg.style.color = '#f85149';
+          msg.textContent = T.error;
+        }
+        setTimeout(() => msg.textContent = '', 3000);
+      });
+    }
+
+    async function geocodeMissing() {
+      const res = await fetch('/api/geocode-missing', { method: 'POST' });
+      const msg = document.getElementById('geocodeMsg');
+      if (res.ok) {
+        msg.style.color = '#3fb950';
+        msg.textContent = T.geocode_started;
+      } else {
+        msg.style.color = '#f85149';
+        msg.textContent = T.error;
+      }
+    }
+
+    // ── Tarife ──
+    async function addTariff() {
+      const valid_from = document.getElementById('newTariffFrom').value;
+      const price = parseFloat(document.getElementById('newTariffPrice').value);
+      if (!valid_from || isNaN(price)) return alert(T.enter_date_price);
+      await fetch('/api/charge/tariffs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ valid_from, pauschale_kwh: price })
+      });
+      location.reload();
+    }
+    async function deleteTariff(id) {
+      if (!confirm(T.confirm_delete_tariff)) return;
+      await fetch('/api/charge/tariffs/' + id, { method: 'DELETE' });
+      location.reload();
+    }
+
+    // ── Session-Start-Nummer ──
+    async function saveSessionStart() {
+      const val = parseInt(document.getElementById('sessionStart').value);
+      if (isNaN(val) || val < 1) return alert(T.session_start_min);
+      await fetch('/api/charge/session-start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: val })
+      });
+      location.reload();
+    }
+
+    // ── Ladevorgänge neu berechnen ──
+    async function rebuild() {
+      const msg = document.getElementById('rebuildMsg');
+      msg.textContent = T.calculating;
+      msg.style.color = '#8b949e';
+      const res = await fetch('/api/charge/rebuild', { method: 'POST' });
+      if (res.ok) {
+        msg.style.color = '#3fb950';
+        msg.textContent = T.done_reloading;
+        setTimeout(() => location.reload(), 1500);
+      } else {
+        msg.style.color = '#f85149';
+        msg.textContent = T.error;
+      }
+    }
+
+    async function recalcDistances() {
+      const msg = document.getElementById('recalcMsg');
+      msg.textContent = T.calculating;
+      msg.style.color = '#8b949e';
+      const res = await fetch('/api/charge/recalc', { method: 'POST' });
+      if (res.ok) {
+        msg.style.color = '#3fb950';
+        msg.textContent = T.done_reloading;
+        setTimeout(() => location.reload(), 1500);
+      } else {
+        msg.style.color = '#f85149';
+        msg.textContent = T.error;
+      }
+    }
+
+    // ── Externe Ladungen erkennen ──
+    async function detectExternal() {
+      const msg = document.getElementById('detectExtMsg');
+      msg.textContent = T.searching;
+      msg.style.color = '#8b949e';
+      try {
+        const res = await fetch('/api/charge/detect-external', { method: 'POST' });
+        const data = await res.json();
+        if (data.created > 0) {
+          msg.style.color = '#3fb950';
+          msg.textContent = T.detected.replace('{0}', data.created);
+        } else {
+          msg.textContent = T.no_new;
+        }
+      } catch(err) {
+        msg.style.color = '#f85149';
+        msg.textContent = T.error;
+      }
+    }
+
+    // ── Externe Ladung manuell erfassen ──
+    async function addExternal() {
+      const status = document.getElementById('extStatus');
+      const kwh = parseFloat(document.getElementById('extKwh').value);
+      const vehicle = {{ (active_vehicle.plate if active_vehicle else '') | tojson }};
+      if (!vehicle) return alert(T.no_vehicle);
+      if (!kwh || kwh <= 0) return alert(T.kwh_required);
+      const tsStart = document.getElementById('extTimestampStart').value;
+      const tsEnd = document.getElementById('extTimestampEnd').value;
+      if (!tsStart || !tsEnd) return alert(T.start_end_required);
+      try {
+        const resp = await fetch('/api/charge/external', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            vehicle_plate: vehicle, kwh: kwh,
+            timestamp: tsStart.replace('T', ' '), end_time: tsEnd.replace('T', ' '),
+            odometer: document.getElementById('extOdo').value || null,
+            cost_total: document.getElementById('extCost').value || null,
+            note: document.getElementById('extNote').value || null
+          })
+        });
+        const data = await resp.json();
+        if (data.ok) {
+          status.textContent = T.session_saved.replace('{0}', data.session_number);
+          status.style.color = '#3fb950';
+        } else {
+          status.textContent = data.error || T.error;
+          status.style.color = '#da3633';
+        }
+      } catch(err) {
+        status.textContent = T.error + ': ' + err.message;
+        status.style.color = '#da3633';
+      }
+    }
+
+
+
+    // ── Ladungen neu zuweisen ──
+    function reassignQuickSelect(val) {
+      const df = document.getElementById('reassignFrom');
+      const dt = document.getElementById('reassignTo');
+      const now = new Date();
+      const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      if (val === 'all') { df.value = ''; dt.value = ''; }
+      else if (val === 'this_month') {
+        df.value = fmt(new Date(now.getFullYear(), now.getMonth(), 1));
+        dt.value = fmt(now);
+      } else if (val === 'last_month') {
+        df.value = fmt(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+        dt.value = fmt(new Date(now.getFullYear(), now.getMonth(), 0));
+      } else {
+        const from = new Date(); from.setDate(from.getDate() - parseInt(val));
+        df.value = fmt(from); dt.value = fmt(now);
+      }
+      document.getElementById('reassignQuick').selectedIndex = 0;
+      loadReassignCharges();
+    }
+
+    async function loadReassignCharges() {
+      const msg = document.getElementById('reassignMsg');
+      msg.textContent = T.reassign_loading; msg.style.color = '#8b949e';
+      const from = document.getElementById('reassignFrom').value;
+      const to = document.getElementById('reassignTo').value;
+      let url = '/api/charge/sessions/list?';
+      if (from) url += 'from=' + from + '&';
+      if (to) url += 'to=' + to + '&';
+      try {
+        const [res, vRes] = await Promise.all([fetch(url), fetch('/api/vehicles')]);
+        const sessions = await res.json();
+        const vehicles = await vRes.json();
+        // populate target vehicle dropdown
+        const sel = document.getElementById('reassignTargetVehicle');
+        sel.innerHTML = '<option value="">' + T.select_vehicle + '</option>';
+        vehicles.forEach(v => {
+          sel.innerHTML += `<option value="${v.plate}">${v.name || v.plate}</option>`;
+        });
+        // build vehicle name map
+        const vMap = {}; vehicles.forEach(v => vMap[v.plate] = v.name || v.plate);
+        // render table
+        const tbody = document.getElementById('reassignBody');
+        tbody.innerHTML = sessions.map(s => `<tr style="border-bottom:1px solid #21262d">
+          <td style="padding:0.3rem"><input type="checkbox" class="reassign-cb" value="${s.id}" style="accent-color:#58a6ff"></td>
+          <td style="padding:0.3rem">${s.session_number || s.id}</td>
+          <td style="padding:0.3rem;white-space:nowrap">${(s.start_time||'').slice(0,16)}</td>
+          <td style="padding:0.3rem">${vMap[s.vehicle_plate] || s.vehicle_plate}</td>
+          <td style="padding:0.3rem;text-align:right">${s.total_kwh ? s.total_kwh.toFixed(2) : '--'}</td>
+          <td style="padding:0.3rem;white-space:nowrap;max-width:150px;overflow:hidden;text-overflow:ellipsis">${s.location_name || '--'}</td>
+        </tr>`).join('');
+        document.getElementById('reassignPanel').style.display = 'block';
+        msg.textContent = sessions.length + ' Sessions';
+        msg.style.color = '#3fb950';
+      } catch(err) {
+        msg.textContent = T.error + ': ' + err.message;
+        msg.style.color = '#f85149';
+      }
+    }
+
+    function toggleReassignAll(checked) {
+      document.querySelectorAll('.reassign-cb').forEach(cb => cb.checked = checked);
+    }
+
+    async function applyReassign() {
+      const ids = [...document.querySelectorAll('.reassign-cb:checked')].map(cb => parseInt(cb.value));
+      const plate = document.getElementById('reassignTargetVehicle').value;
+      if (!ids.length || !plate) return alert(T.reassign_no_selection);
+      const vName = document.getElementById('reassignTargetVehicle').selectedOptions[0].text;
+      if (!confirm(T.reassign_confirm.replace('{0}', ids.length).replace('{1}', vName))) return;
+      const msg = document.getElementById('reassignResult');
+      try {
+        const res = await fetch('/api/charge/sessions/batch-vehicle', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ids, vehicle_plate: plate})
+        });
+        const data = await res.json();
+        if (data.ok) {
+          msg.textContent = T.reassign_done.replace('{0}', data.updated);
+          msg.style.color = '#3fb950';
+          loadReassignCharges();
+        } else {
+          msg.textContent = data.error || T.error; msg.style.color = '#f85149';
+        }
+      } catch(err) {
+        msg.textContent = T.error + ': ' + err.message; msg.style.color = '#f85149';
+      }
+    }
+
+    // ── Readings Editor ──
+    let rdSessionId = null;
+    let rdEdits = {};
+    let rdDeletes = [];
+    let rdInserts = [];
+    let rdNewCounter = 0;
+
+    function rdQuickSelect(val) {
+      const df = document.getElementById('rdFrom');
+      const dt = document.getElementById('rdTo');
+      const now = new Date();
+      const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      if (val === 'all') { df.value = ''; dt.value = ''; }
+      else if (val === 'this_month') {
+        df.value = fmt(new Date(now.getFullYear(), now.getMonth(), 1));
+        dt.value = fmt(now);
+      } else if (val === 'last_month') {
+        df.value = fmt(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+        dt.value = fmt(new Date(now.getFullYear(), now.getMonth(), 0));
+      } else {
+        const from = new Date(); from.setDate(from.getDate() - parseInt(val));
+        df.value = fmt(from); dt.value = fmt(now);
+      }
+      document.getElementById('rdQuick').selectedIndex = 0;
+      loadRdSessions();
+    }
+
+    async function loadRdSessions() {
+      const msg = document.getElementById('rdMsg');
+      msg.textContent = T.reassign_loading; msg.style.color = '#8b949e';
+      const from = document.getElementById('rdFrom').value;
+      const to = document.getElementById('rdTo').value;
+      let url = '/api/charge/sessions/list?';
+      if (from) url += 'from=' + from + '&';
+      if (to) url += 'to=' + to + '&';
+      try {
+        const [res, vRes] = await Promise.all([fetch(url), fetch('/api/vehicles')]);
+        const sessions = await res.json();
+        const vehicles = await vRes.json();
+        const vMap = {}; vehicles.forEach(v => vMap[v.plate] = v.name || v.plate);
+        const tbody = document.getElementById('rdSessionBody');
+        tbody.innerHTML = sessions.map(s => `<tr style="border-bottom:1px solid #21262d;cursor:pointer" onclick="loadRdReadings(${s.id}, '${s.session_number || s.id}')">
+          <td style="padding:0.3rem">${s.session_number || s.id}</td>
+          <td style="padding:0.3rem;white-space:nowrap">${(s.start_time||'').slice(0,16)}</td>
+          <td style="padding:0.3rem">${vMap[s.vehicle_plate] || s.vehicle_plate}</td>
+          <td style="padding:0.3rem;text-align:right">${s.total_kwh ? s.total_kwh.toFixed(2) : '--'}</td>
+          <td style="padding:0.3rem;white-space:nowrap;max-width:150px;overflow:hidden;text-overflow:ellipsis">${s.location_name || '--'}</td>
+        </tr>`).join('');
+        document.getElementById('rdSessionList').style.display = 'block';
+        msg.textContent = sessions.length + ' Sessions'; msg.style.color = '#3fb950';
+      } catch(err) {
+        msg.textContent = T.error + ': ' + err.message; msg.style.color = '#f85149';
+      }
+    }
+
+    async function loadRdReadings(sessionId, label) {
+      rdSessionId = sessionId;
+      rdEdits = {}; rdDeletes = []; rdInserts = []; rdNewCounter = 0;
+      document.getElementById('rdDetailTitle').textContent = 'Session #' + label;
+      try {
+        const res = await fetch('/api/charge/sessions/' + sessionId + '/readings');
+        const readings = await res.json();
+        const tbody = document.getElementById('rdBody');
+        tbody.innerHTML = readings.map(r => rdRowHtml(r)).join('');
+        document.getElementById('rdDetail').style.display = 'block';
+        document.getElementById('rdSaveMsg').textContent = '';
+      } catch(err) {
+        alert(T.error + ': ' + err.message);
+      }
+    }
+
+    function rdRowHtml(r) {
+      const rid = r.id;
+      const inp = (field, val, w, step) => `<input data-rid="${rid}" data-field="${field}" value="${val ?? ''}" oninput="rdTrackEdit(this)" style="width:${w};padding:0.2rem 0.3rem;background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:3px;font-size:0.72rem;text-align:${step ? 'right' : 'left'}" ${step ? 'type="number" step="'+step+'"' : ''}>`;
+      return `<tr data-rid="${rid}" style="border-bottom:1px solid #21262d">
+        <td style="padding:0.2rem">${inp('timestamp', r.timestamp, '140px')}</td>
+        <td style="padding:0.2rem">${inp('vehicle_plate', r.vehicle_plate, '85px')}</td>
+        <td style="padding:0.2rem">${inp('meter_start', r.meter_start != null ? r.meter_start : '', '75px', '0.01')}</td>
+        <td style="padding:0.2rem">${inp('meter_end', r.meter_end != null ? r.meter_end : '', '75px', '0.01')}</td>
+        <td style="padding:0.2rem">${inp('kwh', r.kwh || '', '60px', '0.001')}</td>
+        <td style="padding:0.2rem">${inp('tibber_price', r.tibber_price != null ? r.tibber_price : '', '70px', '0.0001')}</td>
+        <td style="padding:0.2rem">${inp('tibber_grundgebuehr', r.tibber_grundgebuehr != null ? r.tibber_grundgebuehr : '', '70px', '0.0001')}</td>
+        <td style="padding:0.2rem">${inp('odometer', r.odometer != null ? Math.round(r.odometer) : '', '70px', '1')}</td>
+        <td style="padding:0.2rem"><button onclick="rdMarkDel(this)" style="background:none;border:none;color:#484f58;cursor:pointer;font-size:0.9rem" title="${T.delete_btn}">&times;</button></td>
+      </tr>`;
+    }
+
+    function rdTrackEdit(el) {
+      const rid = el.dataset.rid;
+      const field = el.dataset.field;
+      if (String(rid).startsWith('new-')) {
+        const ins = rdInserts.find(i => i._id === rid);
+        if (ins) ins[field] = el.value;
+      } else {
+        if (!rdEdits[rid]) rdEdits[rid] = {};
+        rdEdits[rid][field] = el.value;
+      }
+    }
+
+    function rdMarkDel(btn) {
+      const tr = btn.closest('tr');
+      const rid = tr.dataset.rid;
+      if (String(rid).startsWith('new-')) {
+        rdInserts = rdInserts.filter(i => i._id !== rid);
+        tr.remove(); return;
+      }
+      if (tr.style.opacity === '0.3') {
+        tr.style.opacity = ''; rdDeletes = rdDeletes.filter(id => id !== rid);
+      } else {
+        tr.style.opacity = '0.3'; rdDeletes.push(rid);
+      }
+    }
+
+    function rdInsertRow() {
+      const tbody = document.getElementById('rdBody');
+      const lastRow = tbody.querySelector('tr:last-child');
+      let defTs = '', defPlate = '', defOdo = '';
+      if (lastRow) {
+        const tsEl = lastRow.querySelector('[data-field="timestamp"]');
+        if (tsEl && tsEl.value) {
+          const d = new Date(tsEl.value.replace(' ', 'T'));
+          if (!isNaN(d)) { d.setMinutes(d.getMinutes() + 15); defTs = d.toISOString().slice(0, 19).replace('T', ' '); }
+        }
+        const pEl = lastRow.querySelector('[data-field="vehicle_plate"]');
+        if (pEl) defPlate = pEl.value;
+        const oEl = lastRow.querySelector('[data-field="odometer"]');
+        if (oEl) defOdo = oEl.value;
+      }
+      const tid = 'new-' + (++rdNewCounter);
+      rdInserts.push({ _id: tid, timestamp: defTs, vehicle_plate: defPlate, odometer: defOdo });
+      const r = { id: tid, timestamp: defTs, vehicle_plate: defPlate, meter_start: null, meter_end: null, kwh: null, tibber_price: null, tibber_grundgebuehr: null, odometer: defOdo || null };
+      tbody.insertAdjacentHTML('beforeend', rdRowHtml(r).replace(`data-rid="${tid}"`, `data-rid="${tid}" style="border-bottom:1px solid #21262d;background:#0d111799"`));
+    }
+
+    function closeRdDetail() {
+      document.getElementById('rdDetail').style.display = 'none';
+      rdSessionId = null; rdEdits = {}; rdDeletes = []; rdInserts = [];
+    }
+
+    async function rdSave() {
+      const msg = document.getElementById('rdSaveMsg');
+      // Collect all current field values
+      document.querySelectorAll('#rdBody tr').forEach(tr => {
+        const rid = tr.dataset.rid;
+        if (rdDeletes.includes(rid)) return;
+        tr.querySelectorAll('input[data-field]').forEach(el => {
+          const field = el.dataset.field;
+          if (String(rid).startsWith('new-')) {
+            const ins = rdInserts.find(i => i._id === rid);
+            if (ins) ins[field] = el.value;
+          } else {
+            if (!rdEdits[rid]) rdEdits[rid] = {};
+            rdEdits[rid][field] = el.value;
+          }
+        });
+      });
+
+      const hasWork = Object.keys(rdEdits).length || rdDeletes.length || rdInserts.length;
+      if (!hasWork) { msg.textContent = 'Keine Änderungen'; msg.style.color = '#8b949e'; return; }
+      msg.textContent = T.calculating; msg.style.color = '#8b949e';
+      const errors = [];
+
+      for (const rid of rdDeletes) {
+        const r = await fetch('/api/charge/readings/' + rid, { method: 'DELETE' });
+        if (!r.ok) errors.push('DEL ' + rid);
+      }
+      for (const [rid, fields] of Object.entries(rdEdits)) {
+        const r = await fetch('/api/charge/readings/' + rid, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(fields) });
+        if (!r.ok) errors.push('UPD ' + rid);
+      }
+      for (const ins of rdInserts) {
+        const body = { ...ins }; delete body._id;
+        const r = await fetch('/api/charge/readings', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        if (!r.ok) errors.push('INS');
+      }
+
+      if (errors.length) { msg.textContent = T.error + ': ' + errors.join(', '); msg.style.color = '#f85149'; return; }
+
+      // Rebuild
+      const rebuildRes = await fetch('/api/charge/rebuild', { method: 'POST' });
+      if (rebuildRes.ok) {
+        msg.textContent = T.done_reloading; msg.style.color = '#3fb950';
+        // Reload readings for same session (ID may have changed)
+        const rebuildData = await rebuildRes.json().catch(() => ({}));
+        setTimeout(() => { closeRdDetail(); loadRdSessions(); }, 1500);
+      } else {
+        msg.textContent = T.error; msg.style.color = '#f85149';
+      }
+    }
+
+    // ── Ladestandorte ──
+
+
+    let chargeLocData = [];
+    let operatorData = [];
+
+    async function loadChargeLocs() {
+      const [res, resOp] = await Promise.all([fetch('/api/charge/locations'), fetch('/api/operators')]);
+      chargeLocData = await res.json();
+      operatorData = await resOp.json();
+      renderChargeLocs();
+      return chargeLocData;
+    }
+
+    function renderChargeLocs() {
+      const el = document.getElementById('chargeLocList');
+      if (!chargeLocData.length) {
+        el.innerHTML = '<p style="color:#484f58;font-size:0.85rem">' + T.no_charge_locations + '</p>';
+        return;
+      }
+      const sorted = [...chargeLocData].sort((a, b) => {
+        const cc = (a.country_code || 'DE').localeCompare(b.country_code || 'DE');
+        if (cc !== 0) return cc;
+        return a.name.localeCompare(b.name, 'de');
+      });
+      el.innerHTML = `
+        <table style="width:100%;border-collapse:collapse;font-size:0.82rem">
+          <thead>
+            <tr style="color:#484f58;font-size:0.72rem;border-bottom:1px solid #30363d">
+              <th style="padding:0.3rem 0.4rem;text-align:left;width:36px"></th>
+              <th style="padding:0.3rem 0.4rem;text-align:left;width:38px">${T.col_country}</th>
+              <th style="padding:0.3rem 0.4rem;text-align:left">Name</th>
+              <th style="padding:0.3rem 0.4rem;text-align:left">${T.col_operator}</th>
+              <th style="padding:0.3rem 0.4rem;width:28px"></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${sorted.map(l => {
+              const clColor = l.op_color || l.color || '#8b949e';
+              const iconHtml = l.icon_url
+                ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:3px;background:${clColor};overflow:hidden"><img src="${l.icon_url}" style="width:16px;height:16px;object-fit:contain"></span>`
+                : `<span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:${clColor}"></span>`;
+              return `<tr style="border-bottom:1px solid #161b22;cursor:pointer" onclick="editChargeLoc(${l.id})" onmouseover="this.style.background='#161b22'" onmouseout="this.style.background=''">
+                <td style="padding:0.3rem 0.4rem">${iconHtml}</td>
+                <td style="padding:0.3rem 0.4rem;color:#8b949e;font-size:0.75rem;white-space:nowrap">${esc(l.country_code || 'DE')}</td>
+                <td style="padding:0.3rem 0.4rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;max-width:160px;white-space:nowrap" title="${esc(l.name)}">${esc(l.name)}</td>
+                <td style="padding:0.3rem 0.4rem;color:#8b949e;overflow:hidden;text-overflow:ellipsis;max-width:120px;white-space:nowrap" title="${esc(l.op_name || l.operator || '')}">${esc(l.op_name || l.operator || '--')}</td>
+                <td style="padding:0.3rem 0.2rem;text-align:right"><button class="btn-sm danger" onclick="event.stopPropagation();deleteChargeLoc(${l.id})" style="padding:0.1rem 0.4rem">&times;</button></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>`;
+    }
+
+    function chargeLocIcon(type) {
+      if (type === 'dc') return '⚡';
+      return '🔌';
+    }
+
+    function newChargeLoc() {
+      document.getElementById('chargeLocDetail').innerHTML = chargeLocFormHtml({});
+      initClMap(null);
+    }
+
+    function editChargeLoc(id) {
+      const loc = chargeLocData.find(l => l.id === id);
+      if (!loc) return;
+      document.getElementById('chargeLocDetail').innerHTML = chargeLocFormHtml(loc);
+      initClMap(loc);
+    }
+
+    function chargeLocFormHtml(loc) {
+      const isPoly = loc.shape === 'polygon';
+      const selOp = loc.operator_id ? operatorData.find(o => o.id === loc.operator_id) : null;
+      const opColor = selOp ? selOp.color : (loc.color || '#8b949e');
+      const opIconUrl = selOp && selOp.icon_url ? selOp.icon_url : (loc.icon_url || null);
+      const operatorOptions = operatorData.map(o =>
+        `<option value="${o.id}" ${loc.operator_id == o.id ? 'selected' : ''}>${esc(o.name)}</option>`
+      ).join('');
+      return `
+        <div class="loc-detail">
+          <h4 style="font-size:0.85rem;color:#58a6ff;margin-bottom:0.5rem">${loc.id ? esc(loc.name) : T.new_charge_loc_title}</h4>
+          <div class="loc-map" id="clMapEl"></div>
+          <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-bottom:0.3rem">
+            <label style="font-size:0.75rem;color:#8b949e;display:flex;align-items:center;gap:0.3rem;cursor:pointer">
+              <input type="radio" name="clShape" value="circle" ${!isPoly ? 'checked' : ''} onchange="clSwitchShape('circle')"> ${T.shape_circle}
+            </label>
+            <label style="font-size:0.75rem;color:#8b949e;display:flex;align-items:center;gap:0.3rem;cursor:pointer">
+              <input type="radio" name="clShape" value="polygon" ${isPoly ? 'checked' : ''} onchange="clSwitchShape('polygon')"> ${T.shape_polygon}
+            </label>
+            <button id="clPolyDoneBtn" onclick="clFinishPolygon()" style="display:${isPoly ? '' : 'none'};padding:0.15rem 0.5rem;font-size:0.7rem;border-radius:4px;border:1px solid #d29922;background:transparent;color:#d29922;cursor:pointer">${T.close_polygon}</button>
+            <button id="clPolyResetBtn" onclick="clResetPolygon()" style="display:${isPoly ? '' : 'none'};padding:0.15rem 0.5rem;font-size:0.7rem;border-radius:4px;border:1px solid #484f58;background:transparent;color:#8b949e;cursor:pointer">${T.redraw}</button>
+            <span style="font-size:0.65rem;color:#484f58" id="clShapeHint">${isPoly ? T.polygon_hint : T.click_map_short}</span>
+          </div>
+          <div class="loc-fields">
+            <div class="loc-field" style="grid-column:span 2">
+              <label>Name</label>
+              <input id="clName" value="${esc(loc.name || '')}">
+            </div>
+            <div class="loc-field">
+              <label>Latitude</label>
+              <input id="clLat" type="number" step="0.000001" value="${loc.lat || ''}" readonly style="opacity:.6">
+            </div>
+            <div class="loc-field">
+              <label>Longitude</label>
+              <input id="clLon" type="number" step="0.000001" value="${loc.lon || ''}" readonly style="opacity:.6">
+            </div>
+            <div class="loc-field" id="clRadiusWrap" style="${isPoly ? 'display:none' : ''}">
+              <label>${T.radius}</label>
+              <input id="clRadius" type="number" value="${loc.radius_m || 200}" min="50" max="2000" step="50">
+            </div>
+            <input type="hidden" id="clPolyCoords" value="${esc(loc.polygon_coords || '')}">
+            <div class="loc-field">
+              <label>${T.country_code}</label>
+              <input id="clCountryCode" value="${esc((loc.country_code || 'DE').toUpperCase())}" maxlength="2" style="text-transform:uppercase" placeholder="DE">
+            </div>
+            <div class="loc-field">
+              <label>${T.common_type}</label>
+              <select id="clType">
+                <option value="ac" ${loc.type === 'ac' ? 'selected' : ''}>AC</option>
+                <option value="dc" ${loc.type === 'dc' ? 'selected' : ''}>DC</option>
+              </select>
+            </div>
+            <div class="loc-field" style="grid-column:span 2">
+              <label>${T.col_operator}</label>
+              <select id="clOperatorId" onchange="applyOperatorToChargeLoc(this.value)" style="width:100%">
+                <option value="">${T.no_operator}</option>
+                ${operatorOptions}
+              </select>
+              ${operatorData.length === 0 ? '<div style="font-size:0.7rem;color:#484f58;margin-top:0.2rem">' + T.no_operators_hint + '</div>' : ''}
+            </div>
+            <div class="loc-field">
+              <label>${T.note}</label>
+              <input id="clNote" value="${esc(loc.note || '')}">
+            </div>
+          </div>
+          <div class="loc-save">
+            <button class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem;background:#238636;border-color:#238636;color:#fff" onclick="saveChargeLoc(${loc.id || 0})">${T.save}</button>
+            <button class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem;background:transparent;border-color:#30363d;color:#8b949e" onclick="document.getElementById('chargeLocDetail').innerHTML=''">${T.cancel}</button>
+          </div>
+        </div>`;
+    }
+
+    let clPolyPoints = [];
+    let clPolyMarkers = [];
+    let clPolyLine = null;
+    let clPolyLayer = null;
+    let clSatLayer = null;
+    let clStreetLayer = null;
+
+    function clSwitchShape(shape) {
+      document.getElementById('clRadiusWrap').style.display = shape === 'circle' ? '' : 'none';
+      const polyBtns = ['clPolyDoneBtn', 'clPolyResetBtn'];
+      polyBtns.forEach(id => { const el = document.getElementById(id); if(el) el.style.display = shape === 'polygon' ? '' : 'none'; });
+      document.getElementById('clShapeHint').textContent = shape === 'polygon'
+        ? T.polygon_hint : T.click_map_short;
+      if (clMarker) { clMap.removeLayer(clMarker); clMarker = null; }
+      if (clCircle) { clMap.removeLayer(clCircle); clCircle = null; }
+      clResetPolygon();
+    }
+
+    function clResetPolygon() {
+      clPolyPoints = [];
+      clPolyMarkers.forEach(m => clMap && clMap.removeLayer(m));
+      clPolyMarkers = [];
+      if (clPolyLine) { clMap && clMap.removeLayer(clPolyLine); clPolyLine = null; }
+      if (clPolyLayer) { clMap && clMap.removeLayer(clPolyLayer); clPolyLayer = null; }
+      document.getElementById('clPolyCoords') && (document.getElementById('clPolyCoords').value = '');
+      document.getElementById('clShapeHint') && (document.getElementById('clShapeHint').textContent = T.polygon_hint);
+    }
+
+    function clUpdatePolyPreview() {
+      if (clPolyLine) clMap.removeLayer(clPolyLine);
+      if (clPolyPoints.length > 1) {
+        clPolyLine = L.polyline(clPolyPoints, { color: '#d29922', weight: 2, dashArray: '5 4' }).addTo(clMap);
+      }
+    }
+
+    function clFinishPolygon() {
+      if (clPolyPoints.length < 3) { alert(T.min_polygon_points); return; }
+      if (clPolyLayer) clMap.removeLayer(clPolyLayer);
+      if (clPolyLine) { clMap.removeLayer(clPolyLine); clPolyLine = null; }
+      clPolyLayer = L.polygon(clPolyPoints, { color: '#d29922', fillColor: '#d29922', fillOpacity: 0.15, weight: 2 }).addTo(clMap);
+      // Centroid speichern
+      const centroid = clPolyPoints.reduce((acc, p) => [acc[0]+p[0], acc[1]+p[1]], [0,0]).map(v => v/clPolyPoints.length);
+      document.getElementById('clLat').value = centroid[0].toFixed(6);
+      document.getElementById('clLon').value = centroid[1].toFixed(6);
+      document.getElementById('clPolyCoords').value = JSON.stringify(clPolyPoints);
+      document.getElementById('clShapeHint').textContent = T.polygon_points.replace('{0}', clPolyPoints.length);
+    }
+
+    function clOperatorIcon(loc) {
+      const color = (loc && (loc.op_color || loc.color)) || '#d29922';
+      if (loc && loc.icon_url) {
+        return L.divIcon({ className: '', html: `<div style="width:15px;height:15px;border-radius:4px;background:${color};display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.7)"><img src="${loc.icon_url}" style="width:12px;height:12px;object-fit:contain"></div>`, iconSize:[15,15], iconAnchor:[7,7] });
+      }
+      const inner = iconSvgHtml('bolt', 10, 'white');
+      return L.divIcon({ className: '', html: `<div style="width:15px;height:15px;border-radius:4px;background:${color};display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.7)">${inner}</div>`, iconSize:[15,15], iconAnchor:[7,7] });
+    }
+
+    function initClMap(loc) {
+      setTimeout(() => {
+        if (clMap) clMap.remove();
+        clPolyPoints = []; clPolyMarkers = []; clPolyLine = null; clPolyLayer = null;
+        const center = loc && loc.lat ? [loc.lat, loc.lon] : [53.55, 10.0];
+        const zoom = loc && loc.lat ? 17 : 10;
+        clMap = L.map('clMapEl', { zoomControl: true, attributionControl: false }).setView(center, zoom);
+        clStreetLayer = L.tileLayer('{{ map_tile_url }}', { maxZoom: 19 });
+        clSatLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 });
+        clStreetLayer.addTo(clMap);
+        // Satellit-Umschalter
+        const satBtn = L.control({ position: 'topright' });
+        let satActive = false;
+        satBtn.onAdd = function() {
+          const btn = L.DomUtil.create('button');
+          btn.textContent = '🛰 Satellit';
+          btn.style.cssText = 'background:#161b22;color:#8b949e;border:1px solid #30363d;border-radius:4px;padding:0.2rem 0.5rem;font-size:0.7rem;cursor:pointer';
+          L.DomEvent.on(btn, 'click', L.DomEvent.stopPropagation).on(btn, 'click', function() {
+            satActive = !satActive;
+            if (satActive) { clMap.removeLayer(clStreetLayer); clSatLayer.addTo(clMap); btn.style.color='#58a6ff'; btn.style.borderColor='#58a6ff'; }
+            else { clMap.removeLayer(clSatLayer); clStreetLayer.addTo(clMap); btn.style.color='#8b949e'; btn.style.borderColor='#30363d'; }
+          });
+          return btn;
+        };
+        satBtn.addTo(clMap);
+
+        // Kontext: andere Ladestandorte als blaue Geofences
+        chargeLocData.forEach(other => {
+          if (loc && loc.id && other.id === loc.id) return;
+          if (!other.lat) return;
+          const clat = other.lat;
+          const clon = other.lon;
+          if (other.shape === 'polygon' && other.polygon_coords) {
+            try {
+              const pts = JSON.parse(other.polygon_coords);
+              L.polygon(pts, { color:'#58a6ff', fillColor:'#58a6ff', fillOpacity:0.08, weight:1.5, dashArray:'4 3' }).addTo(clMap);
+            } catch(e) {}
+          } else if (other.shape === 'rect' && other.lat2 && other.lon2) {
+            L.rectangle([[other.lat,other.lon],[other.lat2,other.lon2]], { color:'#58a6ff', fillColor:'#58a6ff', fillOpacity:0.08, weight:1.5, dashArray:'4 3' }).addTo(clMap);
+          } else {
+            L.circle([other.lat,other.lon], { radius: other.radius_m||200, color:'#58a6ff', fillColor:'#58a6ff', fillOpacity:0.08, weight:1.5, dashArray:'4 3' }).addTo(clMap);
+          }
+          const inner = other.icon_url
+            ? `<img src="${other.icon_url}" style="width:10px;height:10px;object-fit:contain">`
+            : `<svg viewBox="0 0 24 24" width="8" height="8"><path d="M11,21h-1l1-7H7.5c-0.88,0-0.33-0.75-0.31-0.78C8.48,10.94,10.42,7.54,13.01,3h1l-1,7h3.51c0.4,0,0.62,0.19,0.4,0.66C12.97,17.55,11,21,11,21z" fill="white"/></svg>`;
+          const ctxColor = other.op_color || other.color || '#58a6ff';
+          const ctxIco = L.divIcon({ className: '', html: `<div style="width:13px;height:13px;border-radius:3px;background:${ctxColor};display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.6);opacity:0.75">${inner}</div>`, iconSize:[13,13], iconAnchor:[6,6] });
+          L.marker([clat, clon], { icon: ctxIco }).bindTooltip(other.op_name || other.name, { direction:'top' }).addTo(clMap);
+        });
+
+        function placeCircle(latlng, radius) {
+          if (clMarker) clMap.removeLayer(clMarker);
+          if (clCircle) clMap.removeLayer(clCircle);
+          clMarker = L.marker(latlng, { draggable: true, icon: clOperatorIcon(loc) }).addTo(clMap);
+          clCircle = L.circle(latlng, { radius: radius, color: '#d29922', fillColor: '#d29922', fillOpacity: 0.15, weight: 2 }).addTo(clMap);
+          clMarker.on('dragend', function() {
+            const pos = clMarker.getLatLng();
+            document.getElementById('clLat').value = pos.lat.toFixed(6);
+            document.getElementById('clLon').value = pos.lng.toFixed(6);
+            clCircle.setLatLng(pos);
+          });
+        }
+
+
+        // Existing circle anzeigen (polygon wird weiter unten nach click-handler geladen)
+        if (loc && loc.lat && loc.shape !== 'polygon') {
+          placeCircle([loc.lat, loc.lon], loc.radius_m || 200);
+        }
+
+        clMap.on('click', function(e) {
+          const shape = document.querySelector('input[name="clShape"]:checked')?.value || 'circle';
+          if (shape === 'circle') {
+            document.getElementById('clLat').value = e.latlng.lat.toFixed(6);
+            document.getElementById('clLon').value = e.latlng.lng.toFixed(6);
+            const r = parseInt(document.getElementById('clRadius').value) || 200;
+            placeCircle(e.latlng, r);
+          } else {
+            // Polygon: Punkt hinzufügen
+            const pt = [e.latlng.lat, e.latlng.lng];
+            clPolyPoints.push(pt);
+            const m = L.circleMarker(e.latlng, { radius: 5, color: '#d29922', fillColor: '#d29922', fillOpacity: 1, weight: 1 }).addTo(clMap);
+            clPolyMarkers.push(m);
+            clUpdatePolyPreview();
+            document.getElementById('clShapeHint').textContent = T.polygon_drawing.replace('{0}', clPolyPoints.length);
+          }
+        });
+
+        // Vorhandenes Polygon laden
+        if (loc && loc.polygon_coords) {
+          try {
+            clPolyPoints = JSON.parse(loc.polygon_coords);
+            clPolyPoints.forEach(p => {
+              const m = L.circleMarker([p[0],p[1]], { radius: 5, color: '#d29922', fillColor: '#d29922', fillOpacity: 1, weight: 1 }).addTo(clMap);
+              clPolyMarkers.push(m);
+            });
+            clFinishPolygon();
+          } catch(e) {}
+        }
+
+        document.getElementById('clRadius')?.addEventListener('input', function() {
+          if (clCircle) clCircle.setRadius(parseInt(this.value) || 200);
+        });
+      }, 50);
+    }
+
+    async function saveChargeLoc(id) {
+      const shape = document.querySelector('input[name="clShape"]:checked')?.value || 'circle';
+      const polyCoords = document.getElementById('clPolyCoords')?.value || null;
+      const body = {
+        name: document.getElementById('clName').value.trim(),
+        lat: parseFloat(document.getElementById('clLat').value),
+        lon: parseFloat(document.getElementById('clLon').value),
+        radius_m: parseInt(document.getElementById('clRadius')?.value) || 200,
+        shape: shape,
+        polygon_coords: shape === 'polygon' ? polyCoords : null,
+        country_code: (document.getElementById('clCountryCode').value.trim() || 'DE').toUpperCase().slice(0,2),
+        type: document.getElementById('clType').value,
+        operator_id: parseInt(document.getElementById('clOperatorId').value) || null,
+        note: document.getElementById('clNote').value.trim()
+      };
+      if (!body.name || isNaN(body.lat) || isNaN(body.lon)) return alert(T.name_coords_required);
+      if (shape === 'polygon' && !body.polygon_coords) return alert(T.draw_close_polygon);
+      const url = id ? '/api/charge/locations/' + id : '/api/charge/locations';
+      await fetch(url, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
+      document.getElementById('chargeLocDetail').innerHTML = '';
+      loadChargeLocs();
+    }
+
+    async function deleteChargeLoc(id) {
+      if (!confirm(T.confirm_delete_chargeloc)) return;
+      await fetch('/api/charge/locations/' + id, { method: 'DELETE' });
+      loadChargeLocs();
+    }
+
+    function applyOperatorToChargeLoc(_opId) {
+      // Farbe kommt vom Betreiber — kein lokales Feld mehr
+    }
+
+
+    // ── Betreiber-Verwaltung ──
+
+    function renderOperators() {
+      const el = document.getElementById('operatorList');
+      if (!operatorData.length) {
+        el.innerHTML = '<p style="color:#484f58;font-size:0.85rem">' + T.no_operators + '</p>';
+        return;
+      }
+      el.innerHTML = `
+        <table style="width:100%;border-collapse:collapse;font-size:0.82rem">
+          <thead>
+            <tr style="color:#484f58;font-size:0.72rem;border-bottom:1px solid #30363d">
+              <th style="padding:0.3rem 0.4rem;text-align:left;width:36px"></th>
+              <th style="padding:0.3rem 0.4rem;text-align:left">Name</th>
+              <th style="padding:0.3rem 0.4rem;text-align:right;color:#484f58">${T.col_locations}</th>
+              <th style="padding:0.3rem 0.4rem;width:28px"></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${operatorData.map(op => {
+              const iconHtml = op.icon_url
+                ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:3px;background:${op.color};overflow:hidden"><img src="${op.icon_url}" style="width:16px;height:16px;object-fit:contain"></span>`
+                : `<span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:${op.color}"></span>`;
+              return `<tr style="border-bottom:1px solid #161b22;cursor:pointer" onclick="editOperator(${op.id})" onmouseover="this.style.background='#161b22'" onmouseout="this.style.background=''">
+                <td style="padding:0.3rem 0.4rem">${iconHtml}</td>
+                <td style="padding:0.3rem 0.4rem;font-weight:500">${esc(op.name)}</td>
+                <td style="padding:0.3rem 0.4rem;text-align:right;color:#484f58;font-size:0.75rem">${op.location_count || 0}</td>
+                <td style="padding:0.3rem 0.2rem;text-align:right"><button class="btn-sm danger" onclick="event.stopPropagation();deleteOperator(${op.id})" style="padding:0.1rem 0.4rem">&times;</button></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>`;
+    }
+
+    function newOperator() {
+      document.getElementById('operatorDetail').innerHTML = operatorFormHtml({});
+    }
+
+    function editOperator(id) {
+      const op = operatorData.find(o => o.id === id);
+      if (!op) return;
+      document.getElementById('operatorDetail').innerHTML = operatorFormHtml(op);
+    }
+
+    function operatorFormHtml(op) {
+      return `
+        <div class="loc-detail" style="margin-top:0.8rem">
+          <h4 style="font-size:0.85rem;color:#58a6ff;margin-bottom:0.5rem">${op.id ? esc(op.name) : T.new_operator_title}</h4>
+          <div class="loc-fields">
+            <div class="loc-field" style="grid-column:span 2">
+              <label>Name</label>
+              <input id="opName" value="${esc(op.name || '')}" placeholder="${T.operator_name_hint}">
+            </div>
+            <div class="loc-field">
+              <label>${T.color} <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${op.color || '#8b949e'};vertical-align:middle" id="opColorPreview"></span></label>
+              <input id="opColor" type="color" value="${op.color || '#8b949e'}" style="width:100%;height:28px;padding:0;cursor:pointer" onchange="document.getElementById('opColorPreview').style.background=this.value">
+            </div>
+            <div class="loc-field">
+              <label>${T.icon}</label>
+              <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
+                <div id="opIconPreview" style="width:36px;height:36px;border-radius:4px;background:${op.color || '#8b949e'};display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">
+                  ${op.icon_url ? `<img src="${op.icon_url}" style="width:28px;height:28px;object-fit:contain">` : '<span style="color:#484f58;font-size:1.1rem">?</span>'}
+                </div>
+                <input type="file" id="opIconFile" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif" style="font-size:0.75rem;flex:1;min-width:0" onchange="previewOpIcon(this)">
+                ${op.id ? `<button class="btn-sm" onclick="uploadOpIcon(${op.id})" style="white-space:nowrap">${T.icon_upload}</button>` : '<span style="font-size:0.72rem;color:#484f58">' + T.icon_save_first + '</span>'}
+                ${op.icon_url && op.id ? `<button class="btn-sm danger" onclick="removeOpIcon(${op.id})">×</button>` : ''}
+              </div>
+              <div style="font-size:0.7rem;color:#484f58;margin-top:0.25rem">${T.icon_formats}</div>
+            </div>
+          </div>
+          <div class="loc-save">
+            <button class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem;background:#238636;border-color:#238636;color:#fff" onclick="saveOperator(${op.id || 0})">${T.save}</button>
+            <button class="btn-sm" style="font-size:0.8rem;padding:0.3rem 0.8rem;background:transparent;border-color:#30363d;color:#8b949e" onclick="document.getElementById('operatorDetail').innerHTML=''">${T.cancel}</button>
+          </div>
+        </div>`;
+    }
+
+    async function saveOperator(id) {
+      const body = {
+        name: document.getElementById('opName').value.trim(),
+        color: document.getElementById('opColor').value
+      };
+      if (!body.name) return alert(T.name_required_short);
+      const url = id ? `/api/operators/${id}` : '/api/operators';
+      const res = await fetch(url, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
+      const data = await res.json();
+      if (!res.ok) return alert(data.error || T.error);
+      document.getElementById('operatorDetail').innerHTML = '';
+      await loadChargeLocs();
+      renderOperators();
+    }
+
+    async function deleteOperator(id) {
+      if (!confirm(T.confirm_delete_operator)) return;
+      await fetch(`/api/operators/${id}`, { method: 'DELETE' });
+      await loadChargeLocs();
+      renderOperators();
+    }
+
+    function previewOpIcon(input) {
+      if (!input.files || !input.files[0]) return;
+      const preview = document.getElementById('opIconPreview');
+      const url = URL.createObjectURL(input.files[0]);
+      preview.innerHTML = `<img src="${url}" style="width:28px;height:28px;object-fit:contain">`;
+    }
+
+    async function uploadOpIcon(id) {
+      const input = document.getElementById('opIconFile');
+      if (!input || !input.files || !input.files[0]) return alert(T.no_file);
+      const form = new FormData();
+      form.append('icon', input.files[0]);
+      const res = await fetch(`/api/operators/${id}/icon`, { method: 'POST', body: form });
+      const data = await res.json();
+      if (!res.ok) return alert(data.error || T.upload_error);
+      await loadChargeLocs();
+      editOperator(id);
+    }
+
+    async function removeOpIcon(id) {
+      await fetch(`/api/operators/${id}/icon`, { method: 'DELETE' });
+      await loadChargeLocs();
+      editOperator(id);
+    }
+
+    // Boot
+    load();
+    loadRules();
+    loadSettings();
+    loadChargeLocs();
+
+    // ── DB-Stats ──
+    function fmtBytes(b) {
+      if (b >= 1048576) return (b / 1048576).toFixed(1) + ' MB';
+      if (b >= 1024) return (b / 1024).toFixed(0) + ' KB';
+      return b + ' B';
+    }
+
+    // ── Telemetry stats: Stick battery ──
+    let stickBatteryChart = null;
+    async function loadStickBattery() {
+      try {
+        const res = await fetch('/api/admin/stats/stick-battery');
+        const d = await res.json();
+        const datasets = (d.devices || []).map(dev => ({
+          label: dev.name,
+          data: dev.data.map(p => ({ x: p[0], y: p[1] })),
+          borderColor: dev.color,
+          backgroundColor: dev.color + '22',
+          borderWidth: 1.8,
+          pointRadius: 0,
+          tension: 0.25,
+          spanGaps: false,
+        }));
+        const legend = document.getElementById('stickBatteryLegend');
+        legend.innerHTML = (d.devices || []).map(dev =>
+          `<span><span style="display:inline-block;width:10px;height:10px;background:${dev.color};border-radius:2px;vertical-align:middle"></span> ${dev.name} (${dev.data.length} pts)</span>`
+        ).join('');
+        if (stickBatteryChart) stickBatteryChart.destroy();
+        const ctx = document.getElementById('stickBatteryChart');
+        stickBatteryChart = new Chart(ctx, {
+          type: 'line',
+          data: { datasets },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            animation: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { display: false } },
+            scales: {
+              x: {
+                type: 'time',
+                time: { unit: 'hour', displayFormats: { hour: 'HH:mm' } },
+                ticks: { color: '#8b949e', font: { size: 10 }, maxTicksLimit: 12 },
+                grid: { color: '#21262d' }
+              },
+              y: {
+                min: 0, max: 110,
+                ticks: { color: '#8b949e', font: { size: 10 }, callback: v => v + ' %' },
+                grid: { color: '#21262d' }
+              }
+            }
+          }
+        });
+      } catch (e) {
+        console.error('stick battery load failed', e);
+      }
+    }
+
+    // ── Telemetry stats: Data volume ──
+    let dataVolumeChart = null;
+    async function loadDataVolume() {
+      try {
+        const res = await fetch('/api/admin/stats/data-volume');
+        const d = await res.json();
+        const labels = (d.hours || []).map(ts => new Date(ts));
+        const datasets = (d.devices || []).map(dev => ({
+          label: dev.name,
+          data: dev.data,
+          backgroundColor: dev.color,
+          borderColor: dev.color,
+          borderWidth: 0,
+          stack: 'vol',
+        }));
+        const legend = document.getElementById('dataVolumeLegend');
+        legend.innerHTML = (d.devices || []).map(dev => {
+          const total = dev.data.reduce((a, b) => a + b, 0);
+          const totalStr = total >= 1024 ? (total / 1024).toFixed(1) + ' MB' : total.toFixed(0) + ' KB';
+          return `<span><span style="display:inline-block;width:10px;height:10px;background:${dev.color};border-radius:2px;vertical-align:middle"></span> ${dev.name} (${totalStr})</span>`;
+        }).join('');
+        if (dataVolumeChart) dataVolumeChart.destroy();
+        const ctx = document.getElementById('dataVolumeChart');
+        dataVolumeChart = new Chart(ctx, {
+          type: 'bar',
+          data: { labels, datasets },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            animation: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { display: false } },
+            scales: {
+              x: {
+                type: 'time',
+                stacked: true,
+                time: { unit: 'hour', displayFormats: { hour: 'HH:mm' } },
+                ticks: { color: '#8b949e', font: { size: 10 }, maxTicksLimit: 12 },
+                grid: { color: '#21262d' }
+              },
+              y: {
+                stacked: true,
+                ticks: { color: '#8b949e', font: { size: 10 }, callback: v => v + ' KB' },
+                grid: { color: '#21262d' }
+              }
+            }
+          }
+        });
+      } catch (e) {
+        console.error('data volume load failed', e);
+      }
+    }
+
+    // ── Telemetry stats: Carrier coverage ──
+    let carrierMap = null;
+    let carrierLayers = [];
+    async function loadCarrierCoverage() {
+      try {
+        const res = await fetch('/api/admin/stats/carrier-coverage');
+        const d = await res.json();
+        const carriers = d.carriers || [];
+
+        if (!carrierMap) {
+          carrierMap = L.map('carrierMap', { zoomControl: true, attributionControl: false }).setView([51.16, 10.45], 6);
+          L.tileLayer('{{ map_tile_url }}', { maxZoom: 19 }).addTo(carrierMap);
+        }
+        // clear previous
+        carrierLayers.forEach(l => carrierMap.removeLayer(l));
+        carrierLayers = [];
+
+        const allLatLngs = [];
+        carriers.forEach(c => {
+          c.points.forEach(p => {
+            // CSQ 0..31 → opacity
+            const opacity = Math.max(0.2, Math.min(0.85, p.csq / 31));
+            const radius = 4 + Math.min(8, Math.log2((p.n || 1) + 1));
+            const marker = L.circleMarker([p.lat, p.lon], {
+              radius,
+              color: c.color,
+              fillColor: c.color,
+              fillOpacity: opacity,
+              weight: 0,
+            }).bindTooltip(`${c.name}<br>CSQ: ${p.csq}<br>${p.n} pts`, { sticky: true });
+            marker.addTo(carrierMap);
+            carrierLayers.push(marker);
+            allLatLngs.push([p.lat, p.lon]);
+          });
+        });
+        if (allLatLngs.length > 0) {
+          try { carrierMap.fitBounds(allLatLngs, { padding: [20, 20], maxZoom: 12 }); } catch (e) {}
+        }
+        setTimeout(() => carrierMap.invalidateSize(), 100);
+
+        const legend = document.getElementById('carrierLegend');
+        legend.innerHTML = carriers.map(c =>
+          `<span><span style="display:inline-block;width:10px;height:10px;background:${c.color};border-radius:50%;vertical-align:middle"></span> ${c.name} (${c.total_n} pts)</span>`
+        ).join('');
+      } catch (e) {
+        console.error('carrier coverage load failed', e);
+      }
+    }
+
+    async function loadDbStats() {
+      const sqlEl = document.getElementById('dbSqlite');
+      const inflEl = document.getElementById('dbInflux');
+      const tsEl = document.getElementById('dbStatsTs');
+      const btn = document.getElementById('dbRefreshBtn');
+      sqlEl.textContent = T.db_loading;
+      inflEl.textContent = T.db_loading;
+      btn.disabled = true;
+      try {
+        const r = await fetch('/api/admin/db-stats');
+        if (!r.ok) { sqlEl.textContent = 'HTTP ' + r.status; return; }
+        const d = await r.json();
+        tsEl.textContent = T.db_timestamp + ' ' + new Date().toLocaleTimeString();
+        sqlEl.dataset.loaded = '1';
+
+        const TABLE_LABELS = {
+          trips:T.db_tbl_trips, locations:T.db_tbl_locations, charges:T.db_tbl_charges, route_rules:T.db_tbl_route_rules,
+          users:T.db_tbl_users, purpose_meta:T.db_tbl_purpose_meta, preset_values:T.db_tbl_preset_values,
+          settings:T.db_tbl_settings, vehicles:T.db_tbl_vehicles, charge_tariffs:T.db_tbl_charge_tariffs,
+          charge_readings:T.db_tbl_charge_readings, charge_sessions:T.db_tbl_charge_sessions,
+          charge_locations:T.db_tbl_charge_locations, gpx_waypoints:T.db_tbl_gpx_waypoints,
+          journeys:T.db_tbl_journeys, journey_trips:T.db_tbl_journey_trips
+        };
+        const s = d.sqlite;
+        const intColor = s.integrity_ok ? '#3fb950' : '#f85149';
+        const intTxt = s.integrity_ok ? '✓ OK' : '✗ ' + (s.integrity_issues || []).length + ' Problem(e)';
+        const fragColor = s.fragmentation_pct < 5 ? '#3fb950' : s.fragmentation_pct < 15 ? '#d29922' : '#f85149';
+        const wrtColor = s.write_100_ms < 50 ? '#3fb950' : s.write_100_ms < 200 ? '#d29922' : '#f85149';
+        const card = (label, value, valueColor) =>
+          `<div style="background:#0d1117;border:1px solid #21262d;border-radius:6px;padding:0.45rem 0.7rem">
+            <div style="font-size:0.68rem;color:#484f58;margin-bottom:0.15rem">${label}</div>
+            <div style="font-size:0.95rem;font-weight:600${valueColor ? ';color:' + valueColor : ''}">${value}</div>
+          </div>`;
+        const tblGrid = Object.entries(s.tables || {}).map(([k, v]) =>
+          `<div style="display:flex;justify-content:space-between;padding:0.18rem 0.5rem;border-radius:4px;background:#0d1117;font-size:0.78rem">
+            <span style="color:#8b949e">${TABLE_LABELS[k] || k}</span>
+            <span style="color:#e6edf3;font-weight:600">${v != null ? v.toLocaleString() : '–'}</span>
+          </div>`
+        ).join('');
+        sqlEl.innerHTML =
+          `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.4rem;margin-bottom:0.5rem">
+            ${card(T.db_file_size, fmtBytes(s.file_bytes))}
+            ${card(T.db_total_rows, (s.total_rows || 0).toLocaleString())}
+            ${card(T.db_fragmentation, s.fragmentation_pct + '%', fragColor)}
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem;margin-bottom:0.6rem">
+            <div style="background:#0d1117;border:1px solid #21262d;border-radius:6px;padding:0.45rem 0.7rem;display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:0.78rem;color:#8b949e">${T.db_integrity}</span>
+              <span style="font-weight:600;color:${intColor}">${intTxt} <span style="font-weight:400;font-size:0.7rem;color:#484f58">${s.integrity_ms}ms</span></span>
+            </div>
+            <div style="background:#0d1117;border:1px solid #21262d;border-radius:6px;padding:0.45rem 0.7rem;display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:0.78rem;color:#8b949e">${T.db_write_test}</span>
+              <span style="font-weight:600;color:${wrtColor}">${s.write_100_ms}ms</span>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.25rem">${tblGrid}</div>
+          ${s.integrity_issues && s.integrity_issues.length ? `<div style="margin-top:0.6rem;padding:0.5rem;background:#f8514922;border:1px solid #f85149;border-radius:6px;font-size:0.78rem;color:#f85149">${s.integrity_issues.join('<br>')}</div>` : ''}`;
+
+        const inf = d.influx;
+        if (inf.status === 'not_configured') {
+          inflEl.innerHTML = '<span style="color:#484f58">' + T.db_not_configured + '</span>';
+        } else if (inf.status === 'error') {
+          inflEl.innerHTML = `<div style="color:#f85149">✗ ${inf.error || T.error}</div>`;
+        } else {
+          const ok = inf.status === 'pass';
+          const stColor = ok ? '#3fb950' : '#f85149';
+          const pingColor = inf.ping_ms < 100 ? '#3fb950' : inf.ping_ms < 500 ? '#d29922' : '#f85149';
+          const qColor = (inf.count_query_ms || 0) < 500 ? '#3fb950' : (inf.count_query_ms || 0) < 2000 ? '#d29922' : '#f85149';
+          const latest = inf.latest_record ? new Date(inf.latest_record).toLocaleString() : '–';
+          const ver = inf.version ? `<span style="font-size:0.7rem;font-weight:400;color:#484f58;margin-left:0.4rem">v${inf.version}</span>` : '';
+          const diskVal = inf.disk_bytes != null ? fmtBytes(inf.disk_bytes) : '–';
+          inflEl.innerHTML =
+            `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.4rem;margin-bottom:0.4rem">
+              ${card('Status', (ok ? '✓ pass' : '✗ ' + inf.status) + ver, stColor)}
+              ${card('Ping', inf.ping_ms + 'ms', pingColor)}
+              ${card(T.db_storage_size, diskVal)}
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem">
+              ${card(T.db_last_entry, latest)}
+              ${card(T.db_points_7d, (inf.points_7d || 0).toLocaleString() + '<span style="font-size:0.7rem;font-weight:400;color:' + qColor + ';margin-left:0.4rem">' + (inf.count_query_ms || 0) + 'ms</span>')}
+            </div>`;
+        }
+      } catch (e) {
+        document.getElementById('dbSqlite').textContent = T.db_error + ': ' + e.message;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    // Prefill from query params (e.g. from trip detail or charge detail geofence link)
+    (function() {
+      const prefillLat = '{{ prefill_lat|default("", true) }}';
+      const prefillLon = '{{ prefill_lon|default("", true) }}';
+      const prefillTab = '{{ prefill_tab|default("", true) }}';
+      const prefillName = '{{ prefill_name|default("", true) }}';
+      if (prefillTab) switchTab(prefillTab);
+
+      // Charge locations prefill
+      if (prefillTab === 'chargelocations' && prefillLat && prefillLon) {
+        const lat = parseFloat(prefillLat), lon = parseFloat(prefillLon);
+        setTimeout(() => {
+          // Create form with prefilled coordinates so map shows marker
+          document.getElementById('chargeLocDetail').innerHTML = chargeLocFormHtml({lat, lon, name: prefillName});
+          document.getElementById('clLat').value = lat.toFixed(6);
+          document.getElementById('clLon').value = lon.toFixed(6);
+          if (prefillName) document.getElementById('clName').value = prefillName;
+          initClMap({lat, lon, radius_m: 200});
+        }, 300);
+        return;
+      }
+
+      if (prefillLat && prefillLon) {
+        switchTab('locations');
+        // Wait for load() to finish, then open new location form with prefilled coords
+        setTimeout(() => {
+          newLocation();
+          setTimeout(() => {
+            const lat = parseFloat(prefillLat);
+            const lon = parseFloat(prefillLon);
+            document.getElementById('locLat').value = lat.toFixed(6);
+            document.getElementById('locLon').value = lon.toFixed(6);
+            // Center map and place marker
+            if (locMap) {
+              locMap.setView([lat, lon], 15);
+              if (locMarker) locMap.removeLayer(locMarker);
+              if (locCircle) locMap.removeLayer(locCircle);
+              locMarker = L.marker([lat, lon], { draggable: true, icon: mkPinIcon('#58a6ff', document.getElementById('locIcon')?.value) }).addTo(locMap);
+              const r = parseInt(document.getElementById('locRadius').value) || 200;
+              locCircle = L.circle([lat, lon], { radius: r, color: '#58a6ff', fillColor: '#58a6ff', fillOpacity: 0.15, weight: 2 }).addTo(locMap);
+              locMarker.on('dragend', function () {
+                const pos = locMarker.getLatLng();
+                document.getElementById('locLat').value = pos.lat.toFixed(6);
+                document.getElementById('locLon').value = pos.lng.toFixed(6);
+                locCircle.setLatLng(pos);
+              });
+            }
+          }, 200);
+        }, 300);
+      }
+    })();
+  </script>
+<footer style="text-align:center;padding:1.5rem 0 0.8rem;font-size:0.7rem;color:#484f58"><a href="https://github.com/TheInGoF/IDMate-dev" target="_blank" style="color:#484f58;text-decoration:none">&copy; 2025–2026 ID·Mate &middot; AGPL v3 &middot; v{{ version }}</a></footer>
+
+
+</body>
+</html>

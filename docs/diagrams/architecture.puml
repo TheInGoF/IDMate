@@ -1,0 +1,34 @@
+@startuml architecture
+!theme plain
+skinparam backgroundColor #0E1B2C
+skinparam defaultFontColor #E8EEF7
+skinparam defaultFontName Helvetica
+skinparam ArrowColor #1DE9B6
+skinparam ArrowFontColor #E8EEF7
+skinparam componentBackgroundColor #14253A
+skinparam componentBorderColor #1DE9B6
+skinparam componentFontColor #E8EEF7
+skinparam databaseBackgroundColor #14253A
+skinparam databaseBorderColor #1DE9B6
+skinparam databaseFontColor #E8EEF7
+skinparam queueBackgroundColor #14253A
+skinparam queueBorderColor #1DE9B6
+skinparam queueFontColor #E8EEF7
+
+title ID·Mate — High-level Architecture
+
+component "IDTelemetry\n(ESP32 / OBD2 / GPS / LTE)" as ESP
+component "Home Assistant\n(MID meter, sensors)" as HA
+queue "Mosquitto\n(MQTT, optional TLS)" as MQTT
+component "Triplog\n(Flask, :3004)" as TRIPLOG
+database "InfluxDB\n(can-scan)" as INFLUX
+database "SQLite\n(triplog.db)" as SQLITE
+
+ESP --> MQTT : binary v1 telegram\n(AES-256-CBC)
+MQTT --> TRIPLOG : subscribe\ntele/+/data
+TRIPLOG --> INFLUX : decrypt + write\nLine Protocol
+TRIPLOG --> INFLUX : read for\ntrip detection
+HA --> TRIPLOG : POST\n/api/charge/reading
+TRIPLOG --> SQLITE : trips, charges,\nlocations, users
+
+@enduml

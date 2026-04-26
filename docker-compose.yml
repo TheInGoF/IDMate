@@ -1,0 +1,88 @@
+services:
+
+  influxdb:
+    image: influxdb:2.7
+    restart: unless-stopped
+    ports:
+      - "${INFLUX_PORT:-3001}:8086"
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+      - influxdb-config:/etc/influxdb2
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUX_USER}
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUX_PASS}
+      - DOCKER_INFLUXDB_INIT_ORG=${INFLUX_ORG}
+      - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUX_BUCKET}
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUX_TOKEN}
+      - DOCKER_INFLUXDB_INIT_RETENTION=0  # unlimited
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8086/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    ports:
+      - "${MQTT_PORT:-3005}:1883"
+    volumes:
+      - ./mosquitto:/mosquitto/config
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-certs:/mosquitto/certs
+    # Synology (docker-compose.local.yml) uses absolute paths:
+    # /volume1/docker/idmate/mosquitto/{config,data,certs}
+    environment:
+      - MQTT_DOMAIN=${MQTT_DOMAIN:-localhost}
+    entrypoint: /bin/sh
+    command: ["/mosquitto/config/entrypoint.sh"]
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -h localhost -p 1883 -t '$$SYS/broker/uptime' -C 1 -W 3 >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  triplog:
+    image: ghcr.io/theingof/idmate:latest
+    restart: unless-stopped
+    ports:
+      - "${TRIPLOG_PORT:-3004}:5000"
+    volumes:
+      - triplog-data:/data
+    environment:
+      - INFLUX_URL=http://influxdb:8086
+      - INFLUX_TOKEN=${INFLUX_TOKEN}
+      - INFLUX_ORG=${INFLUX_ORG}
+      - INFLUX_BUCKET=${INFLUX_BUCKET}
+      - INFLUX_DEVICE=${INFLUX_DEVICE}
+      - DB_PATH=/data/triplog.db
+      - SECRET_KEY=${SECRET_KEY:-}
+      - LANGUAGE=${LANGUAGE:-DE}
+      - CHARGE_WEBHOOK_TOKEN=${CHARGE_WEBHOOK_TOKEN:-}
+      - ENABLE_DEBUG=${ENABLE_DEBUG:-1}
+      - MQTT_BROKER=mosquitto
+      - MQTT_BROKER_PORT=1883
+      - MQTT_TLS=0
+      - MQTT_AES_KEY=${MQTT_AES_KEY}
+      - MQTT_DATA_TOPIC=${MQTT_DATA_TOPIC:-tele/+/data}
+    depends_on:
+      influxdb:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:5000/healthz', timeout=3).status==200 else 1)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  influxdb-data:
+  influxdb-config:
+  triplog-data:
+  mosquitto-data:
+  mosquitto-certs:

@@ -1,0 +1,133 @@
+# ============================================================
+#  ID·Mate — Home Assistant configuration.yaml Ergaenzungen
+# ============================================================
+#
+#  Diese Bloecke muessen in /config/configuration.yaml
+#  eingefuegt werden, damit die ID·Mate-Automationen
+#  funktionieren.
+#
+#  Secrets (in /config/secrets.yaml):
+#    influx_url:          "http://192.168.x.x:3001"
+#    influx_token:        "dein-influxdb-api-token"
+#    influx_org:          "home"
+#    influx_bucket:       "can-scan"
+#    idmate_url:          "http://192.168.x.x:3004"
+#    idmate_charge_token: "dein-webhook-token"
+# ============================================================
+
+
+# ── REST Commands ────────────────────────────────────────────
+
+rest_command:
+
+  # Fahrzeug-Telemetrie → InfluxDB (Line Protocol)
+  # Genutzt von: idmate_vehicle_telemetry.yaml
+  idmate_influx_write:
+    url: !secret influx_url
+    # Vollstaendige URL wird mit Query-Parametern aufgebaut:
+    # http://192.168.x.x:3001/api/v2/write?org=home&bucket=can-scan&precision=s
+    # Da HA-Secrets keine Interpolation unterstuetzen, die URL
+    # direkt zusammenbauen oder einen input_text verwenden:
+    # url: "http://192.168.x.x:3001/api/v2/write?org=home&bucket=can-scan&precision=s"
+    method: POST
+    headers:
+      Authorization: !secret influx_auth_header
+      # In secrets.yaml: influx_auth_header: "Token dein-api-token"
+      Content-Type: "text/plain; charset=utf-8"
+    payload: "{{ payload }}"
+    content_type: "text/plain; charset=utf-8"
+
+  # Lade-Messwerte → ID·Mate Webhook (JSON)
+  # Genutzt von: idmate_charge_tracker.yaml
+  idmate_charge_reading:
+    url: !secret idmate_charge_url
+    # In secrets.yaml: idmate_charge_url: "http://192.168.x.x:3004/api/charge/reading"
+    method: POST
+    headers:
+      Authorization: !secret idmate_charge_auth
+      # In secrets.yaml: idmate_charge_auth: "Bearer dein-webhook-token"
+      Content-Type: "application/json"
+    payload: "{{ payload }}"
+    content_type: "application/json"
+
+
+# ── Input Helpers ────────────────────────────────────────────
+
+input_number:
+  # Letzter Zaehlerstand fuer Differenzberechnung
+  idmate_last_meter:
+    name: "ID·Mate letzter Zaehlerstand"
+    min: 0
+    max: 999999
+    step: 0.001
+    mode: box
+    unit_of_measurement: "kWh"
+    icon: mdi:counter
+
+input_select:
+  # Fahrzeugauswahl an der Wallbox (optional)
+  wallbox_vehicle:
+    name: "Fahrzeug an Wallbox"
+    options:
+      - "AB-CD 1234"
+      - "EF-GH 5678"
+      - "free"
+    initial: "free"
+    icon: mdi:car-electric
+
+
+# ── Secrets-Vorlage ─────────────────────────────────────────
+#
+# In /config/secrets.yaml eintragen:
+#
+#   # InfluxDB (fuer Fahrzeug-Telemetrie)
+#   influx_url:          "http://192.168.x.x:3001/api/v2/write?org=home&bucket=can-scan&precision=s"
+#   influx_auth_header:  "Token dein-influxdb-api-token"
+#
+#   # ID·Mate Triplog (fuer Ladetracker)
+#   idmate_charge_url:   "http://192.168.x.x:3004/api/charge/reading"
+#   idmate_charge_auth:  "Bearer dein-webhook-token"
+#
+# ============================================================
+#
+#  SQLite-Datenbank:
+#
+#  ID·Mate speichert Ladesessions automatisch in SQLite.
+#  Die relevanten Tabellen:
+#
+#    charge_readings   — Einzel-Messwerte (15-Min-Intervalle)
+#      | timestamp       | TEXT   | Zeitstempel              |
+#      | vehicle_plate   | TEXT   | Kennzeichen              |
+#      | meter_start     | REAL   | Zaehler Beginn (kWh)     |
+#      | meter_end       | REAL   | Zaehler Ende (kWh)       |
+#      | kwh             | REAL   | Differenz (kWh)          |
+#      | tibber_price    | REAL   | Strompreis (EUR/kWh)     |
+#      | tibber_grundgeb.| REAL   | Grundgebuehr (EUR/kWh)   |
+#      | odometer        | REAL   | Kilometerstand           |
+#      | session_id      | INT    | Zugeordnete Session      |
+#
+#    charge_sessions   — Aggregierte Ladesessions (automatisch)
+#      | vehicle_plate   | TEXT   | Kennzeichen              |
+#      | start_time      | TEXT   | Beginn der Ladesession   |
+#      | end_time        | TEXT   | Ende der Ladesession     |
+#      | total_kwh       | REAL   | Gesamte kWh              |
+#      | duration_minutes| INT    | Dauer in Minuten         |
+#      | avg_kw          | REAL   | Durchschnittliche kW     |
+#      | odometer        | REAL   | Kilometerstand           |
+#      | cost_tibber     | REAL   | Kosten nach Tibber       |
+#      | cost_pauschale  | REAL   | Kosten nach Pauschale    |
+#      | cost_diff       | REAL   | Differenz Tibber-Pausch. |
+#
+#    vehicles          — Registrierte Fahrzeuge
+#      | plate           | TEXT   | Kennzeichen (eindeutig)  |
+#      | name            | TEXT   | Anzeigename              |
+#      | vin             | TEXT   | Fahrgestellnummer        |
+#
+#    charge_tariffs    — Strompreis-Pauschalen
+#      | valid_from      | TEXT   | Gueltig ab (Datum)       |
+#      | pauschale_kwh   | REAL   | EUR/kWh                  |
+#
+#  Sessions werden serverseitig automatisch aus den Readings
+#  zusammengefasst (Luecke > 60 Min = neue Session).
+#
+# ============================================================

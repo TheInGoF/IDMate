@@ -1,0 +1,201 @@
+# ============================================================
+#  ID·Mate — Home Assistant Automation: Fahrzeug-Telemetrie
+# ============================================================
+#
+#  Schreibt Fahrzeugdaten eines externen Fahrzeugs (z.B. via
+#  WeConnect, Skoda Connect, Tesla, Kia UVO, ...) direkt in
+#  InfluxDB im gleichen Format wie der ESP32 (IDTelemetry).
+#  Damit erkennt der ID·Mate-Detector automatisch Fahrten.
+#
+#  INSTALLATION:
+#    1. Diese Datei nach /config/automations/ kopieren (oder
+#       den Inhalt in automations.yaml einfuegen)
+#    2. Secrets in /config/secrets.yaml eintragen:
+#         influx_url:    "http://192.168.x.x:3001"
+#         influx_token:  "dein-influxdb-api-token"
+#         influx_org:    "home"
+#         influx_bucket: "can-scan"
+#    3. Entity-IDs unten an dein Fahrzeug anpassen
+#    4. device_name MUSS eindeutig sein (z.B. "enyaq", "id3")
+#       und in ID·Mate als separates Fahrzeug erscheinen
+#    5. HA → Entwicklerwerkzeuge → YAML neu laden
+#
+#  HINWEIS:
+#    Nicht alle Felder sind bei jeder Integration verfuegbar.
+#    Felder die als "unknown"/"unavailable" kommen, werden
+#    automatisch uebersprungen (Jinja-Filter).
+#
+#  ID·Mate-Detector benoetigt mindestens:
+#    - v  (Speed)     → Fahrt-Start/-Ende-Erkennung
+#    - s  (SoC)       → Energieberechnung
+#    - la/lo (GPS)    → Streckenberechnung + Geocoding
+#    - pk (IsParked)  → Parkstatus
+#  Optional aber empfohlen:
+#    - od (Odometer), r (Range), ca (Capacity),
+#      et (ExtTemp), c/dc (Charging)
+# ============================================================
+
+automation:
+  - id: idmate_vehicle_telemetry
+    alias: "ID·Mate — Fahrzeug-Telemetrie an InfluxDB"
+    description: >-
+      Schreibt Fahrzeugdaten alle 60 Sekunden in InfluxDB
+      im IDTelemetry-Line-Protocol-Format.
+
+    mode: single
+
+    # ── Trigger: jede Minute ─────────────────────────────────────
+    trigger:
+      - platform: time_pattern
+        minutes: "/1"
+
+    # ── Bedingung: nur wenn Speed-Entity verfuegbar ───────────
+    condition:
+      - condition: not
+        conditions:
+          - condition: state
+            entity_id: &speed_entity sensor.fahrzeug_speed
+            state: "unavailable"
+
+    # ── Variablen ─────────────────────────────────────────────
+    variables:
+      # ── Fahrzeug-Kennung (muss zu ID·Mate devices passen) ────
+      device_name: "mein_fahrzeug"
+
+      # ── Entity-IDs anpassen! ────────────────────────────────
+      # Geschwindigkeit (km/h) — PFLICHT
+      speed: >-
+        {{ states('sensor.fahrzeug_speed') | float(0) }}
+
+      # State of Charge (%) — PFLICHT
+      soc: >-
+        {{ states('sensor.fahrzeug_soc') | float(-1) }}
+
+      # GPS — PFLICHT (oder device_tracker verwenden)
+      latitude: >-
+        {{ state_attr('device_tracker.fahrzeug', 'latitude') | float(0) }}
+      longitude: >-
+        {{ state_attr('device_tracker.fahrzeug', 'longitude') | float(0) }}
+
+      # Parkstatus — PFLICHT
+      is_parked: >-
+        {% if is_state('binary_sensor.fahrzeug_parked', 'on')
+            or states('sensor.fahrzeug_speed') | float(0) == 0 %}1{% else %}0{% endif %}
+
+      # Kilometerstand (km) — empfohlen
+      odometer: >-
+        {{ states('sensor.fahrzeug_odometer') | float(-1) }}
+
+      # Reichweite (km) — empfohlen
+      range_km: >-
+        {{ states('sensor.fahrzeug_range') | float(-1) }}
+
+      # Batteriekapazitaet (kWh) — empfohlen fuer SoH
+      capacity: >-
+        {{ states('sensor.fahrzeug_battery_capacity') | float(-1) }}
+
+      # Aussentemperatur (°C)
+      ext_temp: >-
+        {{ states('sensor.fahrzeug_outside_temperature') | float(-999) }}
+
+      # Batterietemperatur (°C)
+      bat_temp: >-
+        {{ states('sensor.fahrzeug_battery_temperature') | float(-999) }}
+
+      # Laden aktiv
+      is_charging: >-
+        {% if is_state('binary_sensor.fahrzeug_charging', 'on') %}1{% else %}0{% endif %}
+
+      # DC-Schnellladen
+      is_dcfc: >-
+        {% if is_state('binary_sensor.fahrzeug_dc_charging', 'on') %}1{% else %}0{% endif %}
+
+      # Leistung (kW, positiv = Verbrauch)
+      power: >-
+        {{ states('sensor.fahrzeug_power') | float(-999) }}
+
+      # ── Line-Protocol zusammenbauen ─────────────────────────
+      # Format: v,d={device} feld1=wert1,feld2=wert2 {timestamp_ns}
+      line_protocol: >-
+        v,d={{ device_name }}
+        {%- set fields = [] -%}
+        {%- if speed | float(0) >= 0 -%}
+          {%- set fields = fields + ['v=' ~ speed] -%}
+        {%- endif -%}
+        {%- if soc | float(-1) >= 0 -%}
+          {%- set fields = fields + ['s=' ~ soc] -%}
+        {%- endif -%}
+        {%- if latitude | float(0) != 0 and longitude | float(0) != 0 -%}
+          {%- set fields = fields + ['la=' ~ latitude, 'lo=' ~ longitude] -%}
+        {%- endif -%}
+        {%- set fields = fields + ['pk=' ~ is_parked ~ 'i'] -%}
+        {%- if odometer | float(-1) >= 0 -%}
+          {%- set fields = fields + ['od=' ~ odometer] -%}
+        {%- endif -%}
+        {%- if range_km | float(-1) >= 0 -%}
+          {%- set fields = fields + ['r=' ~ range_km] -%}
+        {%- endif -%}
+        {%- if capacity | float(-1) >= 0 -%}
+          {%- set fields = fields + ['ca=' ~ capacity] -%}
+        {%- endif -%}
+        {%- if ext_temp | float(-999) > -999 -%}
+          {%- set fields = fields + ['et=' ~ ext_temp | int ~ 'i'] -%}
+        {%- endif -%}
+        {%- if bat_temp | float(-999) > -999 -%}
+          {%- set fields = fields + ['bt=' ~ bat_temp | int ~ 'i'] -%}
+        {%- endif -%}
+        {%- set fields = fields + ['c=' ~ is_charging ~ 'i'] -%}
+        {%- set fields = fields + ['dc=' ~ is_dcfc ~ 'i'] -%}
+        {%- if power | float(-999) > -999 -%}
+          {%- set fields = fields + ['p=' ~ power] -%}
+        {%- endif -%}
+        {{ ' ' ~ fields | join(',') }}
+
+    # ── Aktion: HTTP POST an InfluxDB ─────────────────────────
+    action:
+      - condition: template
+        value_template: >-
+          {{ soc | float(-1) >= 0 }}
+
+      - service: rest_command.idmate_influx_write
+        data:
+          payload: "{{ line_protocol }}"
+
+
+# ============================================================
+#  REST-Command (in configuration.yaml eintragen)
+# ============================================================
+#
+#  rest_command:
+#    idmate_influx_write:
+#      url: >-
+#        {{ states('input_text.influx_url')
+#           | default('!secret influx_url', true) }}/api/v2/write?org=!secret influx_org&bucket=!secret influx_bucket&precision=s
+#      method: POST
+#      headers:
+#        Authorization: "Token !secret influx_token"
+#        Content-Type: "text/plain; charset=utf-8"
+#      payload: "{{ payload }}"
+#      content_type: "text/plain; charset=utf-8"
+#
+# ── Einfacher (empfohlen): direkt in configuration.yaml ──────
+
+# rest_command:
+#   idmate_influx_write:
+#     url: "!secret influx_url/api/v2/write?org=!secret influx_org&bucket=!secret influx_bucket&precision=s"
+#     method: POST
+#     headers:
+#       Authorization: "Token !secret influx_token"
+#       Content-Type: "text/plain; charset=utf-8"
+#     payload: "{{ payload }}"
+#     content_type: "text/plain; charset=utf-8"
+#
+# ── secrets.yaml ─────────────────────────────────────────────
+#
+#   influx_url:    "http://192.168.x.x:3001"
+#   influx_token:  "dein-influxdb-api-token"
+#   influx_org:    "home"
+#   influx_bucket: "can-scan"
+#
+# ============================================================
+
