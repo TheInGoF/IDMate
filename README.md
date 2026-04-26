@@ -2,6 +2,8 @@
 
 <img src="triplog/static/logo.svg" alt="ID·Mate logo" width="64">
 
+> 🔌 **Companion firmware:** [IDTelemetry](https://github.com/TheInGoF/IDTelemetry) — the ESP32-S3 stick that collects the data and sends it here over MQTT.
+
 **Self-hosted telemetry & trip log for non-Tesla EVs.**
 Collects data via **IDTelemetry** (ESP32/OBD2) over **MQTT with AES-256-CBC** encryption and via **Home Assistant** webhooks.
 Stores everything in InfluxDB + SQLite and ships with a built-in **trip log** (Triplog) — dashboard, logbook, journeys, charge tracker, geofencing, analysis and user management.
