@@ -11,6 +11,20 @@ Stores everything in InfluxDB + SQLite and ships with a built-in **trip log** (T
 
 ---
 
+## Why does this exist?
+
+Massive props to [TeslaMate](https://github.com/teslamate-org/teslamate) — I happily ran it for years and it spoiled me. Then an ID.7 joined the family, and reality hit:
+
+- **VW telemetry is essentially non-existent** — no API, no public data feed, the official app is a black box.
+- **And how the hell do I track my charging costs automatically** so I can hand a clean monthly report to my employer?
+- And honestly: **while VW is still busy figuring out a halfway-acceptable UI in their cars** 🙃, I'd rather build my own.
+
+So I built **ID·Mate**: same spirit as TeslaMate (visualise vehicle data, track trips, monitor battery health), but starting from CAN/OBD2 via an ESP32 stick instead of a vendor API — plus a Home Assistant webhook for wallbox energy/cost tracking.
+
+ID·Mate is **not a fork** of TeslaMate and contains no code from it.
+
+---
+
 ## Screenshots
 
 ### Vehicle Dashboard
@@ -327,12 +341,6 @@ IDMate/
 ```
 
 ---
-
-## Inspiration
-
-Hats off to [TeslaMate](https://github.com/teslamate-org/teslamate) — a fantastic self-hosted data logger for Tesla vehicles that I happily used for years. Unfortunately TeslaMate only supports Tesla, and when a second EV from a different manufacturer joined the family, I needed an alternative. ID·Mate is the result: same spirit (visualise vehicle data, track trips, monitor battery health), but built from scratch for non-Tesla EVs using OBD2/CAN data via ESP32.
-
-ID·Mate is **not a fork** of TeslaMate and contains no code from it.
 
 ## Development
 
