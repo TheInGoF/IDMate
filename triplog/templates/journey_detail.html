@@ -1,0 +1,523 @@
+{% extends "_base.html" %}
+
+{% block doc_title %}IDmate — {{ journey.title }}{% endblock %}
+{% block page_title %}{{ t.journeys_title }}{% endblock %}
+
+{% block extra_head %}
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+{% endblock %}
+
+{% block extra_style %}
+<style>
+    .content{max-width:1200px;margin:0 auto;padding:0.8rem}
+    .back{display:inline-flex;align-items:center;gap:0.3rem;color:var(--accent);text-decoration:none;font-size:0.85rem;margin-bottom:0.8rem}
+    .back:hover{text-decoration:underline}
+
+    /* minmax(0,1fr) statt 1fr: ohne die 0-Untergrenze setzt der Grid-Track
+       min-width:auto, d.h. lange, nicht umbrechende Adressen/Standortnamen in
+       der rechten Spalte blaehen deren Track auf und druecken die Map-Spalte
+       flach. minmax(0,..) erzwingt echtes 50/50, Text wird per Ellipsis gekuerzt. */
+    .detail-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1rem;margin-bottom:1rem}
+    @media(max-width:768px){.detail-grid{grid-template-columns:1fr}}
+
+    .trip-map{width:100%;height:350px;border-radius:6px;transition:height .3s ease}
+    .detail-grid.map-expanded{grid-template-columns:minmax(0,1fr)}
+    .map-card.expanded .trip-map{height:70vh}
+    .chart-wrap{position:relative;width:100%;height:250px}
+    .chart-wrap canvas{width:100%!important;height:100%!important}
+
+    .info-row{display:flex;justify-content:space-between;padding:0.35rem 0;border-bottom:1px solid var(--border-soft);font-size:0.85rem}
+    .info-row:last-child{border-bottom:none}
+    .info-label{color:var(--text-2)}
+    .info-val{color:var(--text-1);text-align:right}
+    tr:hover td{background:#1c2128}
+
+    .btn{padding:0.4rem 0.8rem;border-radius:6px;border:1px solid var(--success-btn);background:var(--success-btn);color:#fff;font-size:0.8rem;cursor:pointer;text-decoration:none;display:inline-block}
+    .btn-delete{padding:0.4rem 0.8rem;border-radius:6px;border:1px solid var(--danger-btn);background:transparent;color:var(--danger);font-size:0.8rem;cursor:pointer}
+    .btn-delete:hover{background:var(--danger-btn);color:#fff}
+
+    .note-input{width:100%;background:var(--bg);color:var(--text-1);border:1px solid var(--border);border-radius:4px;padding:0.3rem 0.5rem;font-size:0.8rem}
+    .note-input:focus{border-color:var(--accent);outline:none}
+
+    .gpx-box{background:var(--bg);border:1px solid var(--border-soft);border-radius:6px;padding:0.8rem;margin-top:0.5rem}
+    .gpx-box p{font-size:0.8rem;color:var(--text-2);margin-bottom:0.5rem}
+    .form-group input,.form-group textarea{width:100%;background:var(--bg);color:var(--text-1);border:1px solid var(--border);border-radius:4px;padding:0.35rem 0.5rem;font-size:0.85rem}
+    .form-group input:focus,.form-group textarea:focus{border-color:var(--accent);outline:none}
+    .trip-list{max-height:220px;overflow-y:auto;border:1px solid var(--border-soft);border-radius:4px;margin-top:0.3rem}
+    .trip-item{display:flex;align-items:center;gap:0.4rem;padding:0.2rem 0.5rem;border-bottom:1px solid var(--bg-card);font-size:0.78rem;line-height:1.2}
+    .trip-item:last-child{border-bottom:none}
+    .trip-item input[type=checkbox]{accent-color:var(--accent);flex-shrink:0}
+    .trip-item .trip-date{color:var(--text-2);min-width:40px;font-size:0.72rem}
+    .trip-item .trip-route{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .trip-item .trip-km{color:var(--text-2);min-width:45px;text-align:right;font-size:0.72rem}
+    .loading-trips{text-align:center;color:var(--text-2);padding:0.5rem;font-size:0.8rem}
+
+    /* Trip/Charge list rows inside .card — flex layout that must shrink the
+       address span instead of overflowing the card on narrow phones. */
+    .jd-row{display:flex;align-items:baseline;gap:0.4rem;padding:0.25rem 0;border-bottom:1px solid var(--border-soft);font-size:0.78rem}
+    .jd-row .jd-date{min-width:70px;white-space:nowrap;flex-shrink:0}
+    .jd-row .jd-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-2)}
+    .jd-row .jd-num{min-width:40px;text-align:right;flex-shrink:0}
+    .jd-row .jd-cost{min-width:50px;text-align:right;color:var(--text-2);flex-shrink:0}
+
+    /* Phones (≤ 480 px): tighter spacing, smaller min-widths so the address
+       column survives. Below 360 px even the date wraps under the address. */
+    @media(max-width:480px){
+      .content{padding:0.5rem}
+      .card{padding:0.7rem}
+      .hdr{padding:0.5rem 0.7rem}
+      .hdr h1{font-size:0.9rem}
+      .info-row{font-size:0.8rem}
+      .jd-row{font-size:0.72rem;gap:0.3rem}
+      .jd-row .jd-date{min-width:0}
+      .jd-row .jd-num{min-width:34px}
+      .jd-row .jd-cost{min-width:42px}
+      table{font-size:0.78rem;table-layout:fixed}
+      td,th{padding:0.4rem 0.4rem;word-break:break-word}
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+  <div class="content">
+    <a class="back" href="/journeys"><svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:middle"><path d="M9 6H3m2.5-2.5L3 6l2.5 2.5"/></svg> {{ t.journey_detail_back }}</a>
+
+    <div style="display:flex;align-items:center;gap:0.8rem;margin-bottom:1rem">
+      <h2 style="font-size:1.1rem;flex:1">{{ journey.title }}</h2>
+      <button class="btn btn-outline" data-onclick="openEdit">{{ t.common_edit }}</button>
+    </div>
+
+    <div class="detail-grid" id="detailGrid">
+      <!-- Left column: Map + Chart -->
+      <div>
+        <div class="card map-card" id="mapCard" style="margin-bottom:1rem">
+          <h2 style="display:flex;align-items:center;justify-content:space-between">{{ t.journey_detail_route }} <button class="btn btn-outline" style="font-size:0.7rem;padding:0.2rem 0.5rem;line-height:1" data-onclick="toggleMapSize"><svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:middle"><path d="M2 5V2h3M12 5V2H9M2 9v3h3M12 9v3H9"/></svg></button></h2>
+          <div class="trip-map" id="journeyMap"></div>
+          <div id="mapLoading" style="text-align:center;color:var(--text-2);font-size:0.8rem;padding:0.5rem">{{ t.journey_detail_loading_gps }}</div>
+        </div>
+
+        <div class="card">
+          <h2>{{ t.journey_detail_km_per_day }}</h2>
+          <div class="chart-wrap">
+            <canvas id="journeyChart"></canvas>
+          </div>
+          <div id="chartLoading" style="text-align:center;color:var(--text-2);font-size:0.8rem;padding:0.5rem">{{ t.common_loading }}</div>
+        </div>
+      </div>
+
+      <!-- Right column: Info + Trips + GPX export -->
+      <div>
+        <div class="card" style="margin-bottom:1rem">
+          <h2>{{ t.journey_detail_overview }}</h2>
+          {% set df = journey.date_from[:10].split('-') %}
+          {% set dt = journey.date_to[:10].split('-') %}
+          <div class="info-row"><span class="info-label">{{ t.journey_detail_period }}</span><span class="info-val">{{ df[2] }}.{{ df[1] }}.{{ df[0] }} &mdash; {{ dt[2] }}.{{ dt[1] }}.{{ dt[0] }}</span></div>
+          <div class="info-row"><span class="info-label">{{ t.journey_detail_trips }}</span><span class="info-val">{{ trips|length }}</span></div>
+          {% set total_km = trips|selectattr('distance_km')|map(attribute='distance_km')|sum %}
+          <div class="info-row"><span class="info-label">{{ t.journey_detail_total_km }}</span><span class="info-val">{{ '%.1f' % total_km }} km</span></div>
+          <div class="info-row"><span class="info-label">{{ t.journey_detail_drive_time }}</span><span class="info-val">{{ drive_minutes // 60 }}h {{ '%02d' % (drive_minutes % 60) }}min</span></div>
+          {% if ac_minutes %}<div class="info-row"><span class="info-label">{{ t.journey_detail_charge_time_ac }}</span><span class="info-val">{{ ac_minutes // 60 }}h {{ '%02d' % (ac_minutes % 60) }}min</span></div>{% endif %}
+          {% if dc_minutes %}<div class="info-row"><span class="info-label">{{ t.journey_detail_charge_time_dc }}</span><span class="info-val">{{ dc_minutes // 60 }}h {{ '%02d' % (dc_minutes % 60) }}min</span></div>{% endif %}
+          {% if avg_speed %}<div class="info-row"><span class="info-label">{{ t.journey_detail_avg_speed }}</span><span class="info-val">{{ avg_speed }} km/h</span></div>{% endif %}
+          {% set total_energy = trips|selectattr('energy_kwh')|map(attribute='energy_kwh')|sum %}
+          <div class="info-row"><span class="info-label">{{ t.journey_detail_consumption }}</span><span class="info-val">{{ '%.1f' % total_energy }} kWh{% if total_km >= 1 %} · {{ '%.1f' % (total_energy / total_km * 100) }} kWh/100km{% endif %}</span></div>
+          {% if charges %}
+          {% set charge_total_kwh = charges|sum(attribute='total_kwh') %}
+          <div class="info-row"><span class="info-label">{{ t.journey_detail_charged }}</span><span class="info-val">{{ '%.1f' % charge_total_kwh }} kWh ({{ charges|length }}x)</span></div>
+          {% set ns2 = namespace(cost=0) %}
+          {% for c in charges %}{% set ns2.cost = ns2.cost + (c.cost_total or c.cost_pauschale or 0) %}{% endfor %}
+          {% if ns2.cost %}<div class="info-row"><span class="info-label">{{ t.journey_detail_charge_cost }}</span><span class="info-val">{{ '%.2f' % ns2.cost }} EUR</span></div>{% endif %}
+          {% endif %}
+          {% if journey.notes %}
+          <div class="info-row" style="flex-direction:column;gap:0.2rem">
+            <span class="info-label">{{ t.common_notes }}</span>
+            <span style="font-size:0.85rem;white-space:pre-wrap">{{ journey.notes }}</span>
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="card" style="margin-bottom:1rem">
+          <h2>{{ t.journey_detail_linked_trips }}</h2>
+          {% if trips %}
+          <div style="max-height:300px;overflow-y:auto">
+            {% for t in trips %}
+            <div class="jd-row">
+              <a class="jd-date" href="/trips/{{ t.id }}">{{ t.start_time[:10] }}</a>
+              <span class="jd-text" title="{{ t.start_address or '?' }} → {{ t.end_address or '?' }}">{{ t.start_address or '?' }} <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:middle"><path d="M3 6h6m-2.5-2.5L9 6 6.5 8.5"/></svg> {{ t.end_address or '?' }}</span>
+              <span class="jd-num">{{ '%.0f' % t.distance_km if t.distance_km else '--' }} km</span>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div style="text-align:center;color:var(--text-2);padding:1rem;font-size:0.85rem">{{ t.journey_detail_no_trips }}</div>
+          {% endif %}
+        </div>
+
+        {% if charges %}
+        <div class="card" style="margin-bottom:1rem">
+          <h2>{{ t.journey_detail_charges }}</h2>
+          <div style="max-height:300px;overflow-y:auto">
+            {% for c in charges %}
+            {% set loc_op = loc_operators.get(c.location_name, {}) %}
+            {% set op_info = loc_op if loc_op.get('icon_url') else op_icon_map.get((c.operator or '').lower(), {}) %}
+            <div class="jd-row" style="align-items:center">
+              {% if op_info.get('icon_url') %}
+              <div style="width:18px;height:18px;border-radius:3px;background:{{ op_info.color }};display:inline-flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">
+                <img src="{{ op_info.icon_url }}" style="width:14px;height:14px;object-fit:contain">
+              </div>
+              {% endif %}
+              <a class="jd-date" href="/charges/{{ c.id }}">{{ c.start_time[:10] }}</a>
+              <span class="jd-text" title="{{ c.location_name or c.operator or '--' }}">{{ c.location_name or c.operator or '--' }}</span>
+              <span class="jd-num">{{ '%.1f' % c.total_kwh if c.total_kwh else '--' }} kWh</span>
+              {% set cost = c.cost_total if c.cost_total is not none else c.cost_pauschale %}
+              {% if cost is not none %}<span class="jd-cost">{{ '%.2f' % cost }} €</span>{% endif %}
+            </div>
+            {% endfor %}
+          </div>
+          {% set charge_kwh = charges|sum(attribute='total_kwh') %}
+          {% set ns = namespace(cost=0) %}
+          {% for c in charges %}{% set ns.cost = ns.cost + (c.cost_total or c.cost_pauschale or 0) %}{% endfor %}
+          {% set charge_cost = ns.cost %}
+          <div style="display:flex;justify-content:space-between;padding:0.4rem 0 0;font-size:0.75rem;color:var(--text-2)">
+            <span>{{ charges|length }}x</span>
+            <span>{{ '%.1f' % charge_kwh }} kWh | {{ '%.2f' % charge_cost }} EUR</span>
+          </div>
+        </div>
+        {% endif %}
+
+        <div class="card" style="margin-bottom:1rem">
+          <h2>{{ t.journey_detail_gpx_export }}</h2>
+          <div class="gpx-box">
+            <p>{{ t.journey_detail_gpx_desc }}</p>
+            <a class="btn btn-outline" href="/api/journeys/{{ journey.id }}/gpx">{{ t.journey_detail_gpx_download }}</a>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2 style="color:var(--danger)">{{ t.journey_detail_danger_zone }}</h2>
+          <p style="font-size:0.8rem;color:var(--text-2);margin-bottom:0.5rem">{{ t.journey_detail_delete_desc }}</p>
+          <button class="btn-delete" data-onclick="deleteJourney">{{ t.journey_detail_delete }}</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Modal -->
+  <div class="modal-overlay" id="editModal" role="dialog" aria-modal="true" aria-labelledby="editModalTitle">
+    <div class="modal">
+      <h3 id="editModalTitle">{{ t.journey_detail_edit_title }}</h3>
+      <div class="form-group">
+        <label for="eTitle">{{ t.common_title }}</label>
+        <input id="eTitle" value="{{ journey.title }}">
+      </div>
+      <div class="form-group">
+        <label for="eFrom">{{ t.common_from }}</label>
+        <input type="datetime-local" id="eFrom" value="{{ journey.date_from }}" data-onchange="loadEditTrips">
+      </div>
+      <div class="form-group">
+        <label for="eTo">{{ t.common_to }}</label>
+        <input type="datetime-local" id="eTo" value="{{ journey.date_to }}" data-onchange="loadEditTrips">
+      </div>
+      <div class="form-group">
+        <label for="eNotes">{{ t.common_notes }}</label>
+        <textarea id="eNotes">{{ journey.notes or '' }}</textarea>
+      </div>
+      <div class="form-group">
+        <label>{{ t.journeys_link_trips }}</label>
+        <div class="trip-list" id="editTripList">
+          <div class="loading-trips">{{ t.journeys_loading_trips }}</div>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn-cancel" data-onclick="closeEdit">{{ t.common_cancel }}</button>
+        <button class="btn" id="saveEditBtn" data-onclick="saveEdit">{{ t.common_save }}</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <script nonce="{{ csp_nonce }}">
+    const JID = {{ journey.id }};
+    const LINKED_IDS = new Set({{ trips|map(attribute='id')|list }});
+    // ── Map ──
+    function toggleMapSize() {
+      document.getElementById('mapCard').classList.toggle('expanded');
+      document.getElementById('detailGrid').classList.toggle('map-expanded');
+      setTimeout(() => map.invalidateSize(), 350);
+    }
+    const map = L.map('journeyMap', { zoomControl: true, attributionControl: false });
+    L.tileLayer('{{ map_tile_url }}', { maxZoom: 17 }).addTo(map);
+
+    const colors = [TC.accent, TC.orange, TC.success, TC.purpleBright, '#f778ba', TC.accentBright, TC.warn, TC.dangerBtn];
+
+    fetch(`/api/journeys/${JID}/route`).then(r => r.json()).then(data => {
+      document.getElementById('mapLoading').style.display = 'none';
+      const segments = data.segments || [];
+      if (!segments.length) {
+        document.getElementById('mapLoading').style.display = '';
+        document.getElementById('mapLoading').textContent = '{{ t.journey_detail_no_gps }}';
+        return;
+      }
+      const isCoords = data.source === 'coords';
+      const allPts = [];
+      segments.forEach((seg, i) => {
+        const color = colors[i % colors.length];
+        const lineOpts = isCoords
+          ? { color, weight: 2, opacity: 0.5, lineJoin: 'round', dashArray: '6 4' }
+          : { color, weight: 3, opacity: 0.85, lineJoin: 'round' };
+        if (seg.length > 1) L.polyline(seg, lineOpts).addTo(map);
+        if (seg.length) {
+          L.circleMarker(seg[0], { radius: 5, color, fillColor: color, fillOpacity: 1, weight: 2 })
+            .bindTooltip('{{ t.journey_detail_trip_start }}'.replace('{0}', i+1), { direction: 'top' }).addTo(map);
+          L.circleMarker(seg[seg.length-1], { radius: 5, color, fillColor: TC.bg, fillOpacity: 1, weight: 2.5 })
+            .bindTooltip('{{ t.journey_detail_trip_dest }}'.replace('{0}', i+1), { direction: 'top' }).addTo(map);
+        }
+        allPts.push(...seg);
+      });
+      if (allPts.length > 1) map.fitBounds(allPts, { padding: [30, 30] });
+      else if (allPts.length === 1) map.setView(allPts[0], 14);
+      if (isCoords) {
+        const hint = L.control({ position: 'bottomleft' });
+        hint.onAdd = () => {
+          const d = L.DomUtil.create('div');
+          d.style.cssText = 'background:rgba(13,17,23,.8);color:var(--text-2);font-size:0.72rem;padding:3px 7px;border-radius:4px';
+          d.textContent = '{{ t.journey_detail_coords_only }}';
+          return d;
+        };
+        hint.addTo(map);
+      }
+
+      // Haversine
+      function _hav(la1, lo1, la2, lo2) {
+        const R = 6371000, dL = (la2-la1)*Math.PI/180, dO = (lo2-lo1)*Math.PI/180;
+        const a = Math.sin(dL/2)**2 + Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dO/2)**2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      }
+
+      // Collect segment endpoints as check points
+      const checkPts = [];
+      segments.forEach(seg => {
+        if (seg.length) { checkPts.push(seg[0]); checkPts.push(seg[seg.length-1]); }
+      });
+
+      // ── Location Icons (SVG) — same as Dashboard ──
+      const LOC_ICONS = {
+        pin:      { path: 'M12,2C8.13,2,5,5.13,5,9c0,5.25,7,13,7,13s7-7.75,7-13C19,5.13,15.87,2,12,2z M12,11.5c-1.38,0-2.5-1.12-2.5-2.5s1.12-2.5,2.5-2.5s2.5,1.12,2.5,2.5S13.38,11.5,12,11.5z' },
+        office:   { path: 'M12,7V3H2v18h20V7H12z M6,19H4v-2h2V19z M6,15H4v-2h2V15z M6,11H4V9h2V11z M6,7H4V5h2V7z M10,19H8v-2h2V19z M10,15H8v-2h2V15z M10,11H8V9h2V11z M10,7H8V5h2V7z M20,19h-8v-2h2v-2h-2v-2h2v-2h-2V9h8V19z M18,11h-2v2h2V11z M18,15h-2v2h2V15z' },
+        home:     { path: 'M10,20v-6h4v6h5v-8h3L12,3L2,12h3v8H10z' },
+        wrench:   { path: 'M22.7,19l-9.1-9.1c0.9-2.3,0.4-5-1.5-6.9c-2-2-5-2.4-7.4-1.3L9,6L6,9L1.6,4.7C0.4,7.1,0.9,10.1,2.9,12.1c1.9,1.9,4.6,2.4,6.9,1.5l9.1,9.1c0.4,0.4,1,0.4,1.4,0l2.3-2.3C23.1,20,23.1,19.3,22.7,19z' },
+        bolt:     { path: 'M11,21h-1l1-7H7.5c-0.88,0-0.33-0.75-0.31-0.78C8.48,10.94,10.42,7.54,13.01,3h1l-1,7h3.51c0.4,0,0.62,0.19,0.4,0.66C12.97,17.55,11,21,11,21z' },
+        shopping: { path: 'M7,18c-1.1,0-1.99,0.9-1.99,2S5.9,22,7,22s2-0.9,2-2S8.1,18,7,18z M1,2v2h2l3.6,7.59L5.25,14.04C5.09,14.32,5,14.65,5,15c0,1.1,0.9,2,2,2h12v-2H7.42c-0.14,0-0.25-0.11-0.25-0.25l0.03-0.12L8.1,13h7.45c0.75,0,1.41-0.41,1.75-1.03l3.58-6.49C21.25,4.82,20.76,4,20.01,4H5.21l-0.94-2H1z M17,18c-1.1,0-1.99,0.9-1.99,2s0.89,2,1.99,2s2-0.9,2-2S18.1,18,17,18z' },
+        tree:     { path: 'M12,2L4.5,20h3l1-3h7l1,3h3L12,2z M10.25,14L12,6.5L13.75,14H10.25z' },
+        fuel:     { path: 'M19.77,7.23l0.01-0.01l-3.72-3.72L15,4.56l2.11,2.11C16.17,7.03,15.5,7.84,15.5,8.82c0,1.24,1.01,2.25,2.25,2.25c0.25,0,0.49-0.04,0.72-0.12V17.5c0,0.55-0.45,1-1,1s-1-0.45-1-1V13c0-1.1-0.9-2-2-2h-1V5c0-1.1-0.9-2-2-2H6C4.9,3,4,3.9,4,5v16h9v-7.5h1.5v5c0,1.38,1.12,2.5,2.5,2.5s2.5-1.12,2.5-2.5V9C19.5,8.31,19.22,7.68,18.77,7.23z M11.5,11H6V5h5.5V11z' },
+        star:     { path: 'M12,17.27L18.18,21l-1.64-7.03L22,9.24l-7.19-0.61L12,2L9.19,8.63L2,9.24l5.46,4.73L5.82,21L12,17.27z' },
+        person:   { path: 'M12,12c2.21,0,4-1.79,4-4s-1.79-4-4-4S8,5.79,8,8S9.79,12,12,12z M12,14c-2.67,0-8,1.34-8,4v2h16v-2C20,15.34,14.67,14,12,14z' },
+        cat:      { path: 'M12,8L10.67,8.09C9.81,7.07,7.4,4.5,5,4.5C5,4.5,3.03,7.8,4.62,10.63C4.22,11.44,4,12.31,4,13C4,14.64,4.5,15.84,5.5,16.7L5.5,19L8.5,19C9.5,19,10.03,18.38,10.5,18H13.5C13.97,18.38,14.5,19,15.5,19L18.5,19L18.5,16.7C19.5,15.84,20,14.64,20,13C20,12.31,19.78,11.44,19.38,10.63C20.97,7.8,19,4.5,19,4.5C16.6,4.5,14.19,7.07,13.33,8.09L12,8ZM9,11A1,1,0,0,1,10,12A1,1,0,0,1,9,13A1,1,0,0,1,8,12A1,1,0,0,1,9,11ZM15,11A1,1,0,0,1,16,12A1,1,0,0,1,15,13A1,1,0,0,1,14,12A1,1,0,0,1,15,11Z' },
+      };
+      function createLocIcon(iconName, bgColor, iconColor) {
+        const ico = LOC_ICONS[iconName] || LOC_ICONS.pin;
+        const bg = bgColor || TC.accent;
+        const fill = iconColor || 'white';
+        return L.divIcon({
+          className: '',
+          html: `<div class="map-icon-badge" style="background:${bg}">
+            <svg viewBox="0 0 24 24" width="10" height="10"><path d="${ico.path}" fill="${fill}"/></svg>
+          </div>`,
+          iconSize: [15, 15], iconAnchor: [7, 7], popupAnchor: [0, -8]
+        });
+      }
+
+      const clusterGroup = L.markerClusterGroup({
+        maxClusterRadius: 35,
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+        zoomToBoundsOnClick: true,
+        iconCreateFunction: function(cluster) {
+          const children = cluster.getAllChildMarkers();
+          const count = children.length;
+          if (count <= 4) {
+            const cols = count <= 1 ? 'g1' : 'g2';
+            const icons = children.map(m => (m.options.icon.options.html || '')).join('');
+            const w = count <= 1 ? 15 : 32;
+            const h = count <= 2 ? 15 : 32;
+            return L.divIcon({ className: '', html: `<div class="cluster-grid ${cols}">${icons}</div>`, iconSize: [w, h], iconAnchor: [w/2, h/2] });
+          }
+          return L.divIcon({ className: '', html: `<div style="width:36px;height:36px;border-radius:8px;background:var(--text-1);color:var(--bg);font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.5);border:2px solid var(--accent)">${count}</div>`, iconSize: [36, 36], iconAnchor: [18, 18] });
+        }
+      });
+      map.addLayer(clusterGroup);
+
+      // Show geofence locations at start/end points
+      fetch('/api/locations').then(r => r.json()).then(locs => {
+        const shownLocs = new Set();
+        for (const pt of checkPts) {
+          for (const loc of locs) {
+            if (shownLocs.has(loc.id)) continue;
+            const d = _hav(pt[0], pt[1], loc.lat, loc.lon);
+            if (d <= (loc.radius_m || 200)) {
+              const ico = createLocIcon(loc.icon || 'pin', loc.color, loc.icon_color);
+              clusterGroup.addLayer(L.marker([loc.lat, loc.lon], { icon: ico })
+                .bindTooltip(loc.name, { permanent: false, direction: 'top' }));
+              shownLocs.add(loc.id);
+            }
+          }
+        }
+      });
+
+      // Charge location badges
+      fetch('/api/charge/locations').then(r => r.json()).then(cls => {
+        const shown = new Set();
+        for (const cl of cls) {
+          if (shown.has(cl.id)) continue;
+          let clat = cl.lat, clon = cl.lon;
+          if (cl.shape === 'rect' && cl.lat2 && cl.lon2) { clat = (cl.lat+cl.lat2)/2; clon = (cl.lon+cl.lon2)/2; }
+          for (const pt of checkPts) {
+            let hit = false;
+            if (cl.shape === 'rect' && cl.lat2 && cl.lon2) {
+              hit = pt[0] >= Math.min(cl.lat,cl.lat2) && pt[0] <= Math.max(cl.lat,cl.lat2)
+                 && pt[1] >= Math.min(cl.lon,cl.lon2) && pt[1] <= Math.max(cl.lon,cl.lon2);
+            } else {
+              hit = _hav(pt[0], pt[1], cl.lat, cl.lon) <= (cl.radius_m || 200);
+            }
+            if (hit) {
+              const color = cl.op_color || cl.color || TC.text2;
+              const inner = cl.icon_url
+                ? `<img src="${cl.icon_url}" style="width:12px;height:12px;display:block;object-fit:contain">`
+                : `<svg viewBox="0 0 24 24" width="10" height="10"><path d="M11,21h-1l1-7H7.5c-0.88,0-0.33-0.75-0.31-0.78C8.48,10.94,10.42,7.54,13.01,3h1l-1,7h3.51c0.4,0,0.62,0.19,0.4,0.66C12.97,17.55,11,21,11,21z" fill="white"/></svg>`;
+              const ico = L.divIcon({ className: '', html: `<div class="map-icon-badge" style="background:${color};width:15px;height:15px;border-radius:4px">${inner}</div>`, iconSize:[15,15], iconAnchor:[7,7] });
+              clusterGroup.addLayer(L.marker([clat, clon], { icon: ico }).bindTooltip(cl.op_name || cl.name, { permanent: false, direction: 'top' }));
+              shown.add(cl.id);
+              break;
+            }
+          }
+        }
+      });
+    });
+
+    // ── Chart ──
+    fetch(`/api/journeys/${JID}/chart-data`).then(r => r.json()).then(d => {
+      document.getElementById('chartLoading').style.display = 'none';
+      if (!d.labels || !d.labels.length) {
+        document.getElementById('chartLoading').style.display = '';
+        document.getElementById('chartLoading').textContent = '{{ t.common_no_data }}';
+        return;
+      }
+      new Chart(document.getElementById('journeyChart'), {
+        type: 'bar',
+        data: {
+          labels: d.labels,
+          datasets: [{
+            label: 'km',
+            data: d.values,
+            backgroundColor: TC.accent,
+            borderRadius: 3,
+            barPercentage: 0.7
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: ctx => `${ctx.parsed.y} km` } }
+          },
+          scales: {
+            x: { ticks: { color: TC.text2, font: { size: 10 }, maxRotation: 45 }, grid: { color: TC.borderSoft } },
+            y: { ticks: { color: TC.accent, font: { size: 10 } }, grid: { color: TC.borderSoft },
+                 title: { display: true, text: 'km', color: TC.text2, font: { size: 10 } } }
+          }
+        }
+      });
+    });
+
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    // ── Edit modal ──
+    let _editTrigger = null;
+    function openEdit(ev) {
+      _editTrigger = (ev && ev.currentTarget) || document.activeElement || null;
+      document.getElementById('editModal').classList.add('open');
+      const first = document.getElementById('eTitle');
+      if (first) first.focus();
+      loadEditTrips();
+    }
+    function closeEdit() {
+      document.getElementById('editModal').classList.remove('open');
+      if (_editTrigger && typeof _editTrigger.focus === 'function') _editTrigger.focus();
+      _editTrigger = null;
+    }
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && document.getElementById('editModal').classList.contains('open')) closeEdit();
+    });
+
+    let _loadEditTripsCtrl = null;
+    async function loadEditTrips() {
+      const from = document.getElementById('eFrom').value;
+      const to = document.getElementById('eTo').value;
+      const el = document.getElementById('editTripList');
+      if (!from || !to) return;
+      el.innerHTML = '<div class="loading-trips">{{ t.journeys_loading_trips }}</div>';
+      const dFrom = from.slice(0, 10);
+      const dTo = to.slice(0, 10);
+      if (_loadEditTripsCtrl) _loadEditTripsCtrl.abort();
+      _loadEditTripsCtrl = new AbortController();
+      let trips;
+      try {
+        const res = await fetch(`/api/journeys/available-trips?from=${dFrom}&to=${dTo}`, { signal: _loadEditTripsCtrl.signal });
+        if (!res.ok) { el.innerHTML = '<div class="loading-trips">{{ t.common_error }}</div>'; return; }
+        trips = await res.json();
+      } catch (err) {
+        if (err.name === 'AbortError') return;
+        el.innerHTML = '<div class="loading-trips">{{ t.common_error }}</div>';
+        return;
+      }
+      if (!trips.length) { el.innerHTML = '<div class="loading-trips">{{ t.journeys_no_trips_in_range }}</div>'; return; }
+      el.innerHTML = trips.map(t => `
+        <label class="trip-item">
+          <input type="checkbox" value="${t.id}" ${LINKED_IDS.has(t.id) ? 'checked' : ''}>
+          <span class="trip-date">${t.start_time.slice(5,10)}</span>
+          <span class="trip-route">${esc(t.start_address || '?')} <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:middle;opacity:0.6"><path d="M3 6h6m-2.5-2.5L9 6 6.5 8.5"/></svg> ${esc(t.end_address || '?')}</span>
+          <span class="trip-km">${Number.isFinite(t.distance_km) ? t.distance_km.toFixed(0) + 'km' : '--'}</span>
+        </label>
+      `).join('');
+    }
+
+    async function saveEdit() {
+      const title = document.getElementById('eTitle').value.trim();
+      const date_from = document.getElementById('eFrom').value;
+      const date_to = document.getElementById('eTo').value;
+      const notes = document.getElementById('eNotes').value.trim();
+      if (!title || !date_from || !date_to) { toast('{{ t.journeys_required_fields }}', 'error'); return; }
+      const checks = document.querySelectorAll('#editTripList input[type=checkbox]:checked');
+      const trip_ids = Array.from(checks).map(c => parseInt(c.value));
+      const btn = document.getElementById('saveEditBtn');
+      if (btn && btn.disabled) return;
+      if (btn) btn.disabled = true;
+      try {
+        const res = await fetch(`/api/journeys/${JID}`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ title, date_from, date_to, notes, trip_ids })
+        });
+        if (res.ok) { location.reload(); return; }
+        toast('{{ t.journey_detail_save_error }}', 'error');
+      } catch (err) {
+        toast('{{ t.journey_detail_save_error }}', 'error');
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    // ── Delete ──
+    async function deleteJourney() {
+      if (!await confirmModal('{{ t.journey_detail_confirm_delete }}')) return;
+      await fetch(`/api/journeys/${JID}`, { method: 'DELETE' });
+      window.location.href = '/journeys';
+    }
+  </script>
+{% endblock %}

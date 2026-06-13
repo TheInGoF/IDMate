@@ -1,0 +1,74 @@
+<style>
+  .profile-picker{position:relative;display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;cursor:pointer;color:var(--text-2);background:none;border:1px solid transparent;font:inherit;transition:border-color .15s,background .15s,color .15s;flex-shrink:0}
+  .profile-picker:hover{background:var(--bg-card);border-color:var(--border);color:var(--text-1)}
+  .profile-picker.open{background:var(--bg-card);border-color:var(--border);color:var(--text-1)}
+  .profile-picker:focus-visible{outline:2px solid var(--accent);outline-offset:2px;color:var(--text-1)}
+  .profile-dropdown{display:none;position:absolute;top:calc(100% + 6px);right:0;min-width:170px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:500;overflow:hidden}
+  .profile-picker.open .profile-dropdown{display:block}
+  .profile-opt{display:flex;align-items:center;gap:0.6rem;padding:0.7rem 0.9rem;font-size:0.85rem;color:var(--text-1);text-decoration:none;white-space:nowrap;transition:background .12s}
+  .profile-opt:hover,.profile-opt:focus-visible{background:var(--bg-hover);text-decoration:none;outline:none}
+  .profile-opt.divider{border-top:1px solid var(--border-soft)}
+  .profile-opt.logout{color:var(--danger)}
+  .profile-opt svg{flex-shrink:0;opacity:0.8}
+  .profile-version{display:block;padding:0.5rem 0.9rem;font-size:0.7rem;color:var(--text-3);text-align:center;border-top:1px solid var(--border-soft);text-decoration:none}
+  .profile-version:hover{color:var(--text-2);text-decoration:none}
+  .profile-avatar-img{width:26px;height:26px;border-radius:50%;object-fit:cover;flex-shrink:0}
+  .profile-opt.btn-opt{background:none;border:none;width:100%;text-align:left;font:inherit;cursor:pointer}
+  @media (pointer: coarse){.profile-picker{width:44px;height:44px}.profile-opt{padding:0.85rem 0.9rem}}
+</style>
+
+<div class="profile-picker" id="profilePicker" data-onclick="toggleProfilePicker" data-onkeydown="profilePickerKey" tabindex="0" role="button" aria-label="{{ t.profile_picker_aria_open }}" aria-haspopup="true" aria-expanded="false">
+  {% if current_user.avatar_filename %}<img class="profile-avatar-img" src="/media/user-avatars/{{ current_user.avatar_filename }}" alt="{{ current_user.username }}">{% else %}<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>{% endif %}
+  <div class="profile-dropdown" role="menu">
+    <a href="/profile" class="profile-opt" role="menuitem">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
+      {{ t.profile_title }}
+    </a>
+    <a href="/admin" class="profile-opt divider" role="menuitem">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>
+      {{ t.nav_admin }}
+    </a>
+    <a href="/logout" class="profile-opt logout divider" role="menuitem">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+      {{ t.nav_logout }}
+    </a>
+    <a href="https://github.com/TheInGoF/IDMate-dev" target="_blank" rel="noopener" class="profile-version">IDmate &middot; AGPL v3 &middot; v{{ version }}</a>
+  </div>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+function profileSetOpen(open){
+  var p = document.getElementById('profilePicker');
+  if (!p) return;
+  p.classList.toggle('open', open);
+  p.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+function toggleProfilePicker(e){
+  e.stopPropagation();
+  var p = document.getElementById('profilePicker');
+  var willOpen = !p.classList.contains('open');
+  profileSetOpen(willOpen);
+  if (willOpen){
+    var first = p.querySelector('.profile-opt');
+    if (first) first.focus();
+  }
+}
+function profilePickerKey(e){
+  if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar'){
+    e.preventDefault();
+    toggleProfilePicker(e);
+  }
+}
+document.addEventListener('click', function(e){
+  var p = document.getElementById('profilePicker');
+  if (p && !p.contains(e.target)) profileSetOpen(false);
+});
+document.addEventListener('keydown', function(e){
+  if (e.key !== 'Escape') return;
+  var p = document.getElementById('profilePicker');
+  if (p && p.classList.contains('open')){
+    profileSetOpen(false);
+    p.focus();
+  }
+});
+</script>

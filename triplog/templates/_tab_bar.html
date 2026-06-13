@@ -1,0 +1,89 @@
+<style>
+  /* Bottom tab bar — persistent top-level navigation per Apple HIG (3–5 tabs).
+     Replaces the burger as primary nav; burger reduced to Admin/Logout meta.
+     Caveats:
+     - In iOS Safari browser mode, Safari's own bottom URL bar overlays this.
+       Solution: "Add to Home Screen" runs the app in PWA mode without browser chrome.
+     - safe-area-inset-bottom handles the home indicator on iPhone X+. */
+  /* (View Transitions rule moved into each template's <head> <style> so it's
+     parsed before the body — late parsing in the partial caused the browser
+     to fall back to hard navigation on heavier pages like dashboard/charges.) */
+  body { padding-bottom: calc(56px + env(safe-area-inset-bottom)); }
+  /* Dashboard (index.html) had its own mini bottom copyright stripe — the tab
+     bar replaces it. Hidden where present, harmless otherwise. */
+  .mob-footer { display: none !important; }
+  .tab-bar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: var(--bg-card);
+    display: flex; z-index: 1100;
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+  .tab-bar a {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 2px;
+    padding: 0.4rem 0; min-height: 56px;
+    color: var(--text-2); text-decoration: none;
+    font-size: 0.7rem; transition: color 0.15s;
+  }
+  .tab-bar a.active { color: var(--accent); text-shadow: 0 0 8px color-mix(in srgb,var(--accent) 70%,transparent), 0 0 18px color-mix(in srgb,var(--accent) 35%,transparent); }
+  .tab-bar a.active svg { filter: drop-shadow(0 0 6px color-mix(in srgb,var(--accent) 60%,transparent)) drop-shadow(0 0 12px color-mix(in srgb,var(--accent) 30%,transparent)); }
+  .tab-bar a:active { color: var(--text-1); }
+  .tab-bar a:hover { text-decoration: none; }
+  .tab-bar svg { width: 22px; height: 22px; flex-shrink: 0; }
+  @media (max-width: 360px) {
+    .tab-bar a { font-size: 0.62rem; }
+    .tab-bar svg { width: 20px; height: 20px; }
+  }
+  /* Desktop / iPad (≥ 768 px): per Apple HIG iOS 18 / iPadOS 18, tab bar
+     migrates to the TOP — bottom placement is iPhone-only. Header sticky at
+     y=0, tab bar fixed right below at y=45, content cleared with margin-top. */
+  @media (min-width: 768px) {
+    body { padding-bottom: 0 !important; }
+    .tab-bar {
+      position: fixed; top: 45px; bottom: auto;
+      left: 0; right: 0;
+      flex-direction: row; height: 48px;
+      padding: 0; border: none;
+      background: var(--bg); z-index: 1099;
+      justify-content: center;
+    }
+    .tab-bar a {
+      flex: 0 1 auto; flex-direction: row; gap: 0.5rem;
+      padding: 0 1.2rem; min-height: 48px;
+      font-size: 0.85rem;
+    }
+    /* Glow active state in desktop too — same neon vibe as mobile, no underline. */
+    .tab-bar svg { width: 18px; height: 18px; }
+    /* Consistent breathing room under the nav bar on desktop: ~0.8rem gap that
+       matches the .content { padding: 0.8rem } on most pages, so switching
+       between Dashboard (.main) and other pages doesn't show a visible jump. */
+    .content { margin-top: calc(48px + 0.8rem); }
+    .main { margin-top: calc(48px + 0.8rem); max-height: calc(100vh - 93px - 0.8rem); }
+  }
+</style>
+
+{% set _p = request.path %}
+<nav class="tab-bar" aria-label="{{ t.nav_aria_main }}">
+  <a href="/" class="{% if _p == '/' %}active{% endif %}" aria-label="{{ t.nav_dashboard }}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12l9-9 9 9M5 10v10h14V10"/></svg>
+    {{ t.nav_dashboard }}
+  </a>
+  <a href="/trips" class="{% if _p.startswith('/trips') %}active{% endif %}" aria-label="{{ t.nav_trips }}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/><path d="M9.6 12H4.5M14.4 12h5.1M12 14.4v5.1"/></svg>
+    {{ t.nav_trips }}
+  </a>
+  <a href="/journeys" class="{% if _p.startswith('/journeys') %}active{% endif %}" aria-label="{{ t.nav_journeys }}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3V6M9 3v15M15 6v15"/></svg>
+    {{ t.nav_journeys }}
+  </a>
+  <a href="/analysis" class="{% if _p.startswith('/analysis') %}active{% endif %}" aria-label="{{ t.nav_analysis }}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21V3M3 21h18M7 17V11M12 17V6M17 17V13"/></svg>
+    {{ t.nav_analysis }}
+  </a>
+  <a href="/charges" class="{% if _p.startswith('/charges') %}active{% endif %}" aria-label="{{ t.nav_charges }}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/></svg>
+    {{ t.nav_charges }}
+  </a>
+</nav>

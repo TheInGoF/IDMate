@@ -1,0 +1,454 @@
+{% extends "_base.html" %}
+
+{% block doc_title %}IDmate — {{ t.profile_title }}{% endblock %}
+{% block page_title %}{{ t.profile_title }}{% endblock %}
+
+{% block hdr_vehicle %}{% endblock %}
+
+{% block extra_style %}
+<style>
+  .content{max-width:640px;margin:0 auto;padding:0.8rem;display:flex;flex-direction:column;gap:0.8rem}
+  .profile-avatar-lg{width:96px;height:96px;border-radius:50%;object-fit:cover;flex-shrink:0;border:1px solid var(--border);background:var(--bg)}
+  .profile-avatar-fallback{display:flex;align-items:center;justify-content:center;color:var(--text-2)}
+  .avatar-row{display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
+  .avatar-actions{display:flex;flex-direction:column;gap:0.5rem}
+  .sec-hint{font-size:0.75rem;color:var(--text-2);margin-top:0.4rem}
+  .pw-row{display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center}
+  .pw-row input{flex:1;min-width:160px;background:var(--bg);color:var(--text-1);border:1px solid var(--border);border-radius:4px;padding:0.35rem 0.5rem;font-size:0.85rem}
+  .pw-row input:focus{border-color:var(--accent);outline:none}
+  .twofa-status{display:inline-flex;align-items:center;gap:0.4rem;font-size:0.85rem;margin-bottom:0.6rem}
+  .twofa-status .dot{width:8px;height:8px;border-radius:50%}
+  .twofa-status.on{color:var(--success)}.twofa-status.on .dot{background:var(--success)}
+  .twofa-status.off{color:var(--text-2)}.twofa-status.off .dot{background:var(--text-3)}
+  .reauth-box{display:none;margin-top:0.6rem}
+  .reauth-box.open{display:block}
+  .reauth-box label{display:block;font-size:0.8rem;color:var(--text-2);margin-bottom:0.3rem}
+  hr.sep{border:0;border-top:1px solid var(--border-soft);margin:0.9rem 0}
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:none;align-items:center;justify-content:center;padding:1rem}
+  .modal-overlay.open{display:flex}
+  .avatar-editor{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:1rem;width:min(92vw,400px)}
+  .avatar-editor h2{font-size:0.9rem;color:var(--accent);margin-bottom:0.8rem;font-weight:600}
+  #avatarEditorCanvas{display:block;width:100%;border-radius:8px;background:var(--bg);cursor:grab;touch-action:none}
+  #avatarEditorCanvas.dragging{cursor:grabbing}
+  .avatar-zoom-row{display:flex;align-items:center;gap:0.6rem;margin-top:0.8rem}
+  .avatar-zoom-row label{font-size:0.8rem;color:var(--text-2);flex-shrink:0}
+  .avatar-zoom-row input[type=range]{flex:1;accent-color:var(--accent)}
+  .avatar-editor-actions{display:flex;justify-content:flex-end;gap:0.5rem;margin-top:0.9rem}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="content">
+
+  <!-- Avatar -->
+  <div class="card">
+    <h2>{{ t.profile_avatar_title }}</h2>
+    <div class="avatar-row">
+      {% if current_user.avatar_filename %}
+      <img class="profile-avatar-lg" src="/media/user-avatars/{{ current_user.avatar_filename }}" alt="{{ current_user.username }}">
+      {% else %}
+      <div class="profile-avatar-lg profile-avatar-fallback"><svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></div>
+      {% endif %}
+      <div class="avatar-actions">
+        <button type="button" class="btn-cancel" data-onclick="triggerAvatarUpload">{{ t.profile_avatar_change }}</button>
+        {% if current_user.avatar_filename %}
+        <button type="button" class="btn-danger" data-onclick="removeAvatar">{{ t.profile_avatar_remove }}</button>
+        {% endif %}
+      </div>
+    </div>
+    <input type="file" id="avatarFileInput" accept="image/png,image/jpeg,image/webp" style="display:none" data-onchange="uploadAvatarEv">
+    <p class="sec-hint">{{ t.profile_avatar_hint }}</p>
+  </div>
+
+  <!-- Darstellung -->
+  <div class="card">
+    <h2>{{ t.profile_appearance_title }}</h2>
+    <div class="form-group">
+      <label for="prefLanguage">{{ t.settings_language }}</label>
+      <select id="prefLanguage" data-onchange="saveLanguage">
+        <option value="DE" {{ 'selected' if user_language == 'DE' else '' }}>Deutsch</option>
+        <option value="EN" {{ 'selected' if user_language == 'EN' else '' }}>English</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="prefTheme">{{ t.profile_theme }}</label>
+      <select id="prefTheme" data-onchange="saveTheme">
+        <option value="" {{ 'selected' if not user_theme else '' }}>{{ t.profile_theme_dark }}</option>
+        <option value="light" {{ 'selected' if user_theme == 'light' else '' }}>{{ t.profile_theme_light }}</option>
+        <option value="gt" {{ 'selected' if user_theme == 'gt' else '' }}>{{ t.profile_theme_gt }}</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="prefMapStyle">{{ t.profile_map_style }}</label>
+      <select id="prefMapStyle" data-onchange="saveMapStyle">
+        <option value="" {{ 'selected' if not user_map_style else '' }}>{{ t.profile_map_style_default }}</option>
+        <option value="carto_dark" {{ 'selected' if user_map_style == 'carto_dark' else '' }}>Carto Dark</option>
+        <option value="carto_light" {{ 'selected' if user_map_style == 'carto_light' else '' }}>Carto Light</option>
+        <option value="carto_voyager" {{ 'selected' if user_map_style == 'carto_voyager' else '' }}>Carto Voyager</option>
+        <option value="osm" {{ 'selected' if user_map_style == 'osm' else '' }}>OpenStreetMap</option>
+        <option value="osm_de" {{ 'selected' if user_map_style == 'osm_de' else '' }}>OpenStreetMap (DE)</option>
+        <option value="esri_sat" {{ 'selected' if user_map_style == 'esri_sat' else '' }}>Esri Satellite</option>
+        <option value="esri_topo" {{ 'selected' if user_map_style == 'esri_topo' else '' }}>Esri Topo</option>
+      </select>
+    </div>
+    <p class="sec-hint">{{ t.profile_map_style_hint }}</p>
+  </div>
+
+  <!-- Sicherheit -->
+  <div class="card">
+    <h2>{{ t.profile_security_title }}</h2>
+
+    <h3 style="font-size:0.85rem;margin-bottom:0.5rem">{{ t.profile_change_pw }}</h3>
+    <div class="pw-row">
+      <input id="oldPw" type="password" placeholder="{{ t.profile_old_password }}" aria-label="{{ t.profile_old_password }}" autocomplete="current-password">
+      <input id="newPw" type="password" placeholder="{{ t.profile_new_password }}" aria-label="{{ t.profile_new_password }}" autocomplete="new-password">
+      <button type="button" class="btn-cancel" data-onclick="changeOwnPw">{{ t.profile_change_btn }}</button>
+    </div>
+    <div id="pwMsg" style="font-size:0.8rem;margin-top:0.3rem"></div>
+
+    <hr class="sep">
+
+    <h3 style="font-size:0.85rem;margin-bottom:0.5rem">{{ t.profile_2fa_title }}</h3>
+    {% if totp_enabled %}
+    <div class="twofa-status on"><span class="dot"></span>{{ t.admin_2fa_active }}</div>
+    <div>
+      <button type="button" class="btn-danger" data-onclick="toggleReauth">{{ t.admin_2fa_disable }}</button>
+    </div>
+    <div class="reauth-box" id="reauthBox">
+      <label for="reauthInput">{{ t.reauth_2fa_prompt }}</label>
+      <div class="pw-row">
+        <input id="reauthInput" type="password" autocomplete="current-password" aria-label="{{ t.reauth_2fa_prompt }}">
+        <button type="button" class="btn-danger" data-onclick="confirmDisable2fa">{{ t.common_confirm }}</button>
+        <button type="button" class="btn-cancel" data-onclick="toggleReauth">{{ t.common_cancel }}</button>
+      </div>
+    </div>
+    {% else %}
+    <div class="twofa-status off"><span class="dot"></span>{{ t.admin_2fa_inactive }}</div>
+    <p style="font-size:0.82rem;color:var(--text-2);margin-bottom:0.5rem">{{ t.profile_2fa_desc }}</p>
+    <a href="/setup/2fa" class="btn-cancel" style="display:inline-block;text-decoration:none">{{ t.profile_2fa_setup }}</a>
+    {% endif %}
+  </div>
+
+</div>
+
+<!-- Avatar-Editor: Zuschneiden mit Kreis-Vorschau, Zoom + Verschieben -->
+<div class="modal-overlay" id="avatarEditorModal" role="dialog" aria-modal="true" aria-labelledby="avatarEditorTitle" data-onclick="avatarEditorBackdrop">
+  <div class="avatar-editor">
+    <h2 id="avatarEditorTitle">{{ t.profile_avatar_editor_title }}</h2>
+    <canvas id="avatarEditorCanvas" width="320" height="320"></canvas>
+    <div class="avatar-zoom-row">
+      <label for="avatarZoom">{{ t.profile_avatar_zoom }}</label>
+      <input type="range" id="avatarZoom" min="0" max="100" step="1" value="0" data-oninput="avatarZoomInput" aria-label="{{ t.profile_avatar_zoom }}">
+    </div>
+    <p class="sec-hint">{{ t.profile_avatar_editor_hint }}</p>
+    <div class="avatar-editor-actions">
+      <button type="button" class="btn-cancel" data-onclick="closeAvatarEditor">{{ t.common_cancel }}</button>
+      <button type="button" class="btn btn-primary" data-onclick="applyAvatarEditor">{{ t.common_apply }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ csp_nonce }}">
+  function triggerAvatarUpload(){ document.getElementById('avatarFileInput').click(); }
+  function uploadAvatarEv(){
+    if (this.files && this.files[0]) openAvatarEditor(this.files[0]);
+  }
+
+  async function uploadAvatarBlob(blob){
+    var fd = new FormData();
+    fd.append('avatar', new File([blob], 'avatar.png', { type:'image/png' }));
+    try {
+      var r = await fetch('/api/user/avatar', { method:'POST', body: fd });
+      var d = await r.json().catch(function(){ return {}; });
+      if (r.ok && d.ok) { location.reload(); return; }
+      toast(d.error || {{ t.common_error | tojson }}, 'error');
+    } catch(e){ toast({{ t.common_error | tojson }}, 'error'); }
+  }
+
+  /* ---- Avatar-Editor: Kreis-Vorschau, Zoom (Regler/Rad/Pinch), Verschieben ---- */
+  var AVE = {
+    img:null, scale:1, minScale:1, maxScale:1, x:0, y:0,
+    S:320, cropSize:280,             // Canvas-Groesse / Crop-Quadrat in Canvas-Einheiten
+    dragging:false, lastX:0, lastY:0,
+    pointers:{}, pinchDist:0
+  };
+  AVE.cropOff = (AVE.S - AVE.cropSize) / 2;
+
+  async function openAvatarEditor(file){
+    try {
+      if (window.createImageBitmap) {
+        try { AVE.img = await createImageBitmap(file, { imageOrientation:'from-image' }); }
+        catch(e){ AVE.img = await createImageBitmap(file); }
+      } else {
+        AVE.img = await new Promise(function(res, rej){
+          var im = new Image();
+          im.onload = function(){ res(im); };
+          im.onerror = rej;
+          im.src = URL.createObjectURL(file);
+        });
+      }
+    } catch(e){
+      toast({{ t.common_error | tojson }}, 'error');
+      document.getElementById('avatarFileInput').value = '';
+      return;
+    }
+    var iw = AVE.img.width, ih = AVE.img.height;
+    AVE.minScale = AVE.cropSize / Math.min(iw, ih);
+    AVE.maxScale = AVE.minScale * 8;
+    AVE.scale = AVE.minScale;
+    AVE.x = (AVE.S - iw * AVE.scale) / 2;
+    AVE.y = (AVE.S - ih * AVE.scale) / 2;
+    document.getElementById('avatarZoom').value = 0;
+    document.getElementById('avatarEditorModal').classList.add('open');
+    initAvatarCanvas();
+    drawAvatarEditor();
+  }
+
+  function closeAvatarEditor(){
+    document.getElementById('avatarEditorModal').classList.remove('open');
+    document.getElementById('avatarFileInput').value = '';
+    if (AVE.img && AVE.img.close) AVE.img.close();
+    AVE.img = null;
+  }
+
+  function avatarEditorBackdrop(ev){
+    if (ev.target === document.getElementById('avatarEditorModal')) closeAvatarEditor();
+  }
+
+  function clampAvatarPos(){
+    var lo = AVE.cropOff, hi = AVE.cropOff + AVE.cropSize;
+    AVE.x = Math.min(lo, Math.max(hi - AVE.img.width * AVE.scale, AVE.x));
+    AVE.y = Math.min(lo, Math.max(hi - AVE.img.height * AVE.scale, AVE.y));
+  }
+
+  function setAvatarScale(newScale, cx, cy){
+    newScale = Math.min(AVE.maxScale, Math.max(AVE.minScale, newScale));
+    // Punkt (cx, cy) im Canvas bleibt beim Zoomen fixiert
+    AVE.x = cx - (cx - AVE.x) * (newScale / AVE.scale);
+    AVE.y = cy - (cy - AVE.y) * (newScale / AVE.scale);
+    AVE.scale = newScale;
+    clampAvatarPos();
+    var t = Math.log(AVE.scale / AVE.minScale) / Math.log(AVE.maxScale / AVE.minScale);
+    document.getElementById('avatarZoom').value = Math.round(t * 100);
+  }
+
+  function avatarZoomInput(){
+    var t = this.value / 100;
+    var s = AVE.minScale * Math.pow(AVE.maxScale / AVE.minScale, t);
+    setAvatarScale(s, AVE.S / 2, AVE.S / 2);
+    drawAvatarEditor();
+  }
+
+  function drawAvatarEditor(){
+    var cv = document.getElementById('avatarEditorCanvas');
+    var ctx = cv.getContext('2d');
+    var dpr = window.devicePixelRatio || 1;
+    if (cv.width !== AVE.S * dpr) { cv.width = AVE.S * dpr; cv.height = AVE.S * dpr; }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, AVE.S, AVE.S);
+    ctx.fillStyle = TC.bg;
+    ctx.fillRect(0, 0, AVE.S, AVE.S);
+    if (!AVE.img) return;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(AVE.img, AVE.x, AVE.y, AVE.img.width * AVE.scale, AVE.img.height * AVE.scale);
+    // Bereich ausserhalb des Kreises abdunkeln
+    var c = AVE.S / 2, r = AVE.cropSize / 2;
+    ctx.beginPath();
+    ctx.rect(0, 0, AVE.S, AVE.S);
+    ctx.arc(c, c, r, 0, Math.PI * 2, true);
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fill('evenodd');
+    ctx.beginPath();
+    ctx.arc(c, c, r, 0, Math.PI * 2);
+    ctx.strokeStyle = TC.accent;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  function avatarCanvasPos(cv, ev){
+    var b = cv.getBoundingClientRect();
+    return { x: (ev.clientX - b.left) * (AVE.S / b.width), y: (ev.clientY - b.top) * (AVE.S / b.height) };
+  }
+
+  function initAvatarCanvas(){
+    var cv = document.getElementById('avatarEditorCanvas');
+    if (cv.dataset.wired) return;
+    cv.dataset.wired = '1';
+
+    cv.addEventListener('pointerdown', function(ev){
+      ev.preventDefault();
+      cv.setPointerCapture(ev.pointerId);
+      AVE.pointers[ev.pointerId] = avatarCanvasPos(cv, ev);
+      var ids = Object.keys(AVE.pointers);
+      if (ids.length === 1) {
+        AVE.dragging = true;
+        cv.classList.add('dragging');
+        AVE.lastX = AVE.pointers[ids[0]].x;
+        AVE.lastY = AVE.pointers[ids[0]].y;
+      } else if (ids.length === 2) {
+        var a = AVE.pointers[ids[0]], b = AVE.pointers[ids[1]];
+        AVE.pinchDist = Math.hypot(a.x - b.x, a.y - b.y);
+        AVE.dragging = false;
+      }
+    });
+
+    cv.addEventListener('pointermove', function(ev){
+      if (!(ev.pointerId in AVE.pointers) || !AVE.img) return;
+      AVE.pointers[ev.pointerId] = avatarCanvasPos(cv, ev);
+      var ids = Object.keys(AVE.pointers);
+      if (ids.length === 2) {
+        var a = AVE.pointers[ids[0]], b = AVE.pointers[ids[1]];
+        var dist = Math.hypot(a.x - b.x, a.y - b.y);
+        if (AVE.pinchDist > 0) {
+          setAvatarScale(AVE.scale * dist / AVE.pinchDist, (a.x + b.x) / 2, (a.y + b.y) / 2);
+        }
+        AVE.pinchDist = dist;
+        drawAvatarEditor();
+      } else if (AVE.dragging) {
+        var p = AVE.pointers[ids[0]];
+        AVE.x += p.x - AVE.lastX;
+        AVE.y += p.y - AVE.lastY;
+        AVE.lastX = p.x; AVE.lastY = p.y;
+        clampAvatarPos();
+        drawAvatarEditor();
+      }
+    });
+
+    function endPointer(ev){
+      delete AVE.pointers[ev.pointerId];
+      if (!Object.keys(AVE.pointers).length) {
+        AVE.dragging = false;
+        AVE.pinchDist = 0;
+        cv.classList.remove('dragging');
+      }
+    }
+    cv.addEventListener('pointerup', endPointer);
+    cv.addEventListener('pointercancel', endPointer);
+
+    cv.addEventListener('wheel', function(ev){
+      if (!AVE.img) return;
+      ev.preventDefault();
+      var p = avatarCanvasPos(cv, ev);
+      setAvatarScale(AVE.scale * (ev.deltaY < 0 ? 1.1 : 1 / 1.1), p.x, p.y);
+      drawAvatarEditor();
+    }, { passive:false });
+
+    document.addEventListener('keydown', function(ev){
+      if (ev.key === 'Escape' && document.getElementById('avatarEditorModal').classList.contains('open')) closeAvatarEditor();
+    });
+  }
+
+  async function applyAvatarEditor(){
+    if (!AVE.img) return;
+    var out = document.createElement('canvas');
+    var size = 256;
+    out.width = size; out.height = size;
+    var ctx = out.getContext('2d');
+    ctx.imageSmoothingQuality = 'high';
+    var sx = (AVE.cropOff - AVE.x) / AVE.scale;
+    var sy = (AVE.cropOff - AVE.y) / AVE.scale;
+    var sw = AVE.cropSize / AVE.scale;
+    ctx.drawImage(AVE.img, sx, sy, sw, sw, 0, 0, size, size);
+    var blob = await new Promise(function(res){ out.toBlob(res, 'image/png'); });
+    if (blob && blob.size > 200 * 1024) {
+      // Notfalls kleiner exportieren, Server-Limit ist 200 KB
+      var small = document.createElement('canvas');
+      small.width = 128; small.height = 128;
+      small.getContext('2d').drawImage(out, 0, 0, 128, 128);
+      blob = await new Promise(function(res){ small.toBlob(res, 'image/png'); });
+    }
+    if (!blob) { toast({{ t.common_error | tojson }}, 'error'); return; }
+    closeAvatarEditor();
+    await uploadAvatarBlob(blob);
+  }
+
+  async function removeAvatar(){
+    try {
+      var r = await fetch('/api/user/avatar', { method:'DELETE' });
+      if (r.ok) { location.reload(); return; }
+      toast({{ t.common_error | tojson }}, 'error');
+    } catch(e){ toast({{ t.common_error | tojson }}, 'error'); }
+  }
+
+  async function saveTheme(){
+    var theme = document.getElementById('prefTheme').value;
+    var r = await fetch('/api/profile/preferences', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ theme: theme })
+    });
+    var d = await r.json().catch(function(){ return {}; });
+    if (r.ok && d.ok) location.reload();
+    else toast(d.error || {{ t.common_error | tojson }}, 'error');
+  }
+
+  async function saveLanguage(){
+    var lang = document.getElementById('prefLanguage').value;
+    var r = await fetch('/api/profile/preferences', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ language: lang })
+    });
+    var d = await r.json().catch(function(){ return {}; });
+    if (r.ok && d.ok) location.reload();   // ganze UI in neuer Sprache neu rendern
+    else toast(d.error || {{ t.common_error | tojson }}, 'error');
+  }
+
+  async function saveMapStyle(){
+    var style = document.getElementById('prefMapStyle').value;
+    var r = await fetch('/api/profile/preferences', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ map_style: style })
+    });
+    var d = await r.json().catch(function(){ return {}; });
+    if (r.ok && d.ok) toast({{ t.common_saved | tojson }}, 'success');
+    else toast(d.error || {{ t.common_error | tojson }}, 'error');
+  }
+
+  async function changeOwnPw(){
+    var old_password = document.getElementById('oldPw').value;
+    var new_password = document.getElementById('newPw').value;
+    var msg = document.getElementById('pwMsg');
+    var r = await fetch('/api/change-password', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ old_password: old_password, new_password: new_password })
+    });
+    var d = await r.json().catch(function(){ return {}; });
+    if (d.error) {
+      msg.style.color = TC.danger;
+      msg.textContent = d.error;
+    } else {
+      msg.style.color = TC.success;
+      msg.textContent = {{ t.profile_pw_changed | tojson }};
+      document.getElementById('oldPw').value = '';
+      document.getElementById('newPw').value = '';
+    }
+  }
+
+  function toggleReauth(){
+    var box = document.getElementById('reauthBox');
+    if (!box) return;
+    var willOpen = !box.classList.contains('open');
+    box.classList.toggle('open', willOpen);
+    if (willOpen) document.getElementById('reauthInput').focus();
+    else document.getElementById('reauthInput').value = '';
+  }
+
+  async function confirmDisable2fa(){
+    var v = document.getElementById('reauthInput').value;
+    if (!v) return;
+    var r = await fetch('/api/user/2fa/disable', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ password: v, code: v })
+    });
+    var d = await r.json().catch(function(){ return {}; });
+    if (r.ok && d.ok) { location.reload(); return; }
+    toast(d.error || {{ t.common_error | tojson }}, 'error');
+  }
+</script>
+{% endblock %}
