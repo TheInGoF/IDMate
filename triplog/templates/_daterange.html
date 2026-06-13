@@ -1,0 +1,42 @@
+{# Shared date-range picker (Grafana-style). Needs: t, date_from, date_to.
+   Range is stored server-side in the session via POST /api/daterange; the
+   logic lives in static/daterange.js. Input ids stay dateFrom/dateTo so
+   existing page code keeps working. #}
+<div class="drp" id="drp" data-all-label="{{ t.common_all }}">
+  <button type="button" class="drp-toggle" data-onclick="drpToggle" aria-haspopup="dialog" aria-expanded="false" title="{{ t.drp_range }}">
+    <svg class="drp-cal" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>
+    <span id="drpLabel">{{ t.common_all }}</span>
+    <svg class="drp-chev" viewBox="0 0 10 6" width="10" height="6" fill="none" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+  <div class="drp-panel" role="dialog" aria-label="{{ t.drp_range }}">
+    <div class="drp-cols">
+      <div class="drp-group">
+        <div class="drp-group-title">{{ t.drp_relative }}</div>
+        <button type="button" class="drp-preset" data-key="today"      data-onclick="drpPreset" data-args='["today"]'>{{ t.drp_today }}</button>
+        <button type="button" class="drp-preset" data-key="yesterday"  data-onclick="drpPreset" data-args='["yesterday"]'>{{ t.drp_yesterday }}</button>
+        <button type="button" class="drp-preset" data-key="last7"      data-onclick="drpPreset" data-args='["last7"]'>{{ t.drp_last7 }}</button>
+        <button type="button" class="drp-preset" data-key="last30"     data-onclick="drpPreset" data-args='["last30"]'>{{ t.drp_last30 }}</button>
+        <button type="button" class="drp-preset" data-key="last90"     data-onclick="drpPreset" data-args='["last90"]'>{{ t.drp_last90 }}</button>
+        <button type="button" class="drp-preset" data-key="last365"    data-onclick="drpPreset" data-args='["last365"]'>{{ t.drp_last12m }}</button>
+      </div>
+      <div class="drp-group">
+        <div class="drp-group-title">{{ t.drp_calendar }}</div>
+        <button type="button" class="drp-preset" data-key="thisWeek"   data-onclick="drpPreset" data-args='["thisWeek"]'>{{ t.drp_this_week }}</button>
+        <button type="button" class="drp-preset" data-key="lastWeek"   data-onclick="drpPreset" data-args='["lastWeek"]'>{{ t.drp_last_week }}</button>
+        <button type="button" class="drp-preset" data-key="thisMonth"  data-onclick="drpPreset" data-args='["thisMonth"]'>{{ t.common_this_month }}</button>
+        <button type="button" class="drp-preset" data-key="lastMonth"  data-onclick="drpPreset" data-args='["lastMonth"]'>{{ t.common_last_month }}</button>
+        <button type="button" class="drp-preset" data-key="thisYear"   data-onclick="drpPreset" data-args='["thisYear"]'>{{ t.drp_this_year }}</button>
+        <button type="button" class="drp-preset" data-key="lastYear"   data-onclick="drpPreset" data-args='["lastYear"]'>{{ t.drp_last_year }}</button>
+      </div>
+    </div>
+    <div class="drp-custom">
+      <div class="drp-custom-title">{{ t.drp_custom }}</div>
+      <label>{{ t.common_from }}<input type="date" id="dateFrom" value="{{ date_from or '' }}"></label>
+      <label>{{ t.common_to }}<input type="date" id="dateTo" value="{{ date_to or '' }}"></label>
+      <div class="drp-actions">
+        <button type="button" class="drp-reset" data-key="all" data-onclick="drpPreset" data-args='["all"]'>{{ t.common_all }}</button>
+        <button type="button" class="drp-apply" data-onclick="drpApply">{{ t.common_apply }}</button>
+      </div>
+    </div>
+  </div>
+</div>

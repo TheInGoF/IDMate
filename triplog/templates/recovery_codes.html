@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="{{ current_lang|lower }}">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" type="image/svg+xml" href="/static/logo.svg">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0d1117">
+  <title>ID·Mate — {{ t.recovery_title }}</title>
+  <style>
+    @media (prefers-reduced-motion: reduce){*{animation-duration:0.01ms !important;transition-duration:0.01ms !important;scroll-behavior:auto !important}}
+    @view-transition{navigation:auto}
+    @supports (padding: env(safe-area-inset-top)){body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}.hdr{padding-top:max(0.5rem,env(safe-area-inset-top))}.menu{padding-top:max(1rem,env(safe-area-inset-top))}.content{padding-bottom:max(0.8rem,env(safe-area-inset-bottom))}}
+    @media (pointer: coarse){.burger,.close-btn,.veh-picker{min-height:44px;min-width:44px;display:inline-flex;align-items:center;justify-content:center}.menu a{padding-top:0.9rem;padding-bottom:0.9rem}.tab{min-height:40px}.modal button:not(.mini-btn),.form-actions button{min-height:44px}}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d1117;color:#e6edf3;display:flex;flex-direction:column;justify-content:center;align-items:center;min-height:100vh;padding:1rem}
+    .card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:2rem;width:380px;max-width:100%}
+    h1{font-size:1.4rem;color:#58a6ff;text-align:center;margin-bottom:0.5rem}
+    .subtitle{text-align:center;font-size:0.85rem;color:#8b949e;margin-bottom:1.5rem}
+    .warn{background:#d299221a;border:1px solid #d29922;color:#d29922;border-radius:6px;padding:0.6rem;font-size:0.8rem;margin-bottom:1rem}
+    .codes{display:grid;grid-template-columns:1fr 1fr;gap:0.4rem;margin-bottom:1.5rem}
+    .code{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:0.4rem 0.6rem;font-family:'SF Mono',SFMono-Regular,Consolas,monospace;font-size:1rem;text-align:center;letter-spacing:0.15em;color:#e6edf3;user-select:all}
+    button,.btn-link{display:block;width:100%;padding:0.6rem;border-radius:6px;border:none;background:#238636;color:#fff;font-size:0.9rem;font-weight:600;cursor:pointer;margin-top:0.5rem;text-align:center;text-decoration:none;box-sizing:border-box}
+    button:hover,.btn-link:hover{background:#2ea043}
+    .copy-btn{background:#21262d;border:1px solid #30363d;color:#8b949e;margin-top:0}
+    .copy-btn:hover{color:#e6edf3;border-color:#58a6ff}
+    :focus-visible{outline:2px solid #58a6ff;outline-offset:2px}
+  </style>
+  <script defer src="/static/idmate.js"></script>
+</head>
+<body>
+  <div class="card">
+    <h1>{{ t.recovery_title }}</h1>
+    <div class="subtitle">{{ t.recovery_subtitle }}</div>
+    <div class="warn">{{ t.recovery_warning }}</div>
+    <div class="codes" id="codeGrid">
+      {% for code in codes %}
+      <div class="code">{{ code }}</div>
+      {% endfor %}
+    </div>
+    <button type="button" class="copy-btn" data-onclick="copyAll">{{ t.recovery_copy }}</button>
+    <a href="/" class="btn-link">{{ t.recovery_continue }}</a>
+  </div>
+<footer style="text-align:center;padding:1.5rem 0 0.8rem;font-size:0.7rem;color:#8b949e"><a href="https://github.com/TheInGoF/IDMate-dev" target="_blank" style="color:#8b949e;text-decoration:none">&copy; 2026 ID·Mate &middot; AGPL v3 &middot; v{{ version }}</a></footer>
+<script nonce="{{ csp_nonce }}">
+function copyAll() {
+  const codes = [...document.querySelectorAll('.code')].map(c => c.textContent.trim()).join('\n');
+  navigator.clipboard.writeText(codes).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    const orig = btn.textContent;
+    btn.textContent = {{ t.setup_2fa_copied|tojson }};
+    setTimeout(() => btn.textContent = orig, 1500);
+  });
+}
+</script>
+</body>
+</html>
