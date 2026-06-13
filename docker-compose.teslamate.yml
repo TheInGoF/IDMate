@@ -1,0 +1,26 @@
+# Optional override — aktiviert den TeslaMate-Import in IDMate.
+# Nutzung:
+#   docker compose -f docker-compose.yml -f docker-compose.teslamate.yml up -d
+#
+# Voraussetzung (einmalig in der TeslaMate-eigenen docker-compose.yml):
+#   networks:
+#     teslamate-network:
+#       driver: bridge
+#       name: teslamate-network     # Namens-Prefix vermeiden!
+#
+# Plus in der .env:
+#   TESLAMATE_PG_URL=postgresql://teslamate:DEIN_PASSWORT@TeslaMate-DB:5432/teslamate
+#
+# Details: docs/teslamate-import.md
+services:
+  triplog:
+    environment:
+      - TESLAMATE_PG_URL=${TESLAMATE_PG_URL:-}
+    networks:
+      - default
+      - teslamate-network
+
+networks:
+  teslamate-network:
+    external: true
+    name: teslamate-network

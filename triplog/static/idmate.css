@@ -1,0 +1,175 @@
+/* IDMate — Shared UI Classes
+ * Single Source of Truth fuer Button-, Card-, Modal-, Form-, Table-Patterns.
+ * Wird in _base.html via <link> geladen, vor den per-Template <style>-Bloecken.
+ *
+ * Migration-Status (FIXES 5.5 / 6.5): Phase 1 ist die Datei selbst — Templates
+ * tragen weiterhin eigene Duplikate, die diese Defaults pro Page ueberschreiben.
+ * Phase 2 (folgt) entfernt die Duplikate aus den 9 Haupt-Templates.
+ *
+ * Token-Hierarchie (Konvention, kommt aus _base.html / 5.6):
+ *   Primaer-Text     #e6edf3 (~14.8:1 auf #0d1117)
+ *   Sekundaer-Text   #8b949e (~5.4:1, AA Body)
+ *   Tertiaer-Text    #6e7681 (~3.6:1, AA Large)
+ *   Akzent-Blau      #58a6ff
+ *   Erfolg-Gruen     #3fb950 / Button-Gruen #238636
+ *   Warn-Gelb        #d29922
+ *   Fehler-Rot       #f85149
+ *   Border           #21262d (Card) / #30363d (Input)
+ *   Card-BG          #161b22
+ *   Hover-BG         #21262d
+ */
+
+/* ── Design-Tokens: 3 Themes ──────────────────────────────────
+ * Standard = Dunkel (GitHub-Dark-Palette, Werte wie Token-Hierarchie oben).
+ * Auswahl pro User: users.theme ('' = dunkel, 'light', 'gt'), wird in
+ * _base.html als <html data-theme="..."> gerendert. JS liest aufgeloeste
+ * Werte ueber window.TC (Canvas/Leaflet koennen kein var()). */
+:root{
+  color-scheme:dark;
+  --bg:#0d1117; --bg-card:#161b22; --bg-hover:#21262d; --bg-active:#30363d;
+  --border-soft:#21262d; --border:#30363d;
+  --text-1:#e6edf3; --text-2:#8b949e; --text-3:#6e7681;
+  --accent:#58a6ff; --accent-bright:#79c0ff; --accent-strong:#1f6feb; --accent-deep:#0d419d;
+  --success:#3fb950; --success-bright:#56d364; --success-btn:#238636; --success-btn-hover:#2ea043;
+  --warn:#d29922; --warn-bright:#e3b341; --orange:#f0883e; --orange-dim:#db6d28;
+  --danger:#f85149; --danger-btn:#da3633;
+  --purple:#a371f7; --purple-bright:#bc8cff; --teal:#1de9b6;
+}
+/* Hell: weisse Grundflaeche, gleiche Akzent-Familien in Light-tauglichen
+ * Abstufungen (GitHub-Light; #58a6ff etc. haben auf Weiss keinen Kontrast). */
+html[data-theme="light"]{
+  color-scheme:light;
+  --bg:#ffffff; --bg-card:#f6f8fa; --bg-hover:#eaeef2; --bg-active:#d8dee4;
+  --border-soft:#d8dee4; --border:#d0d7de;
+  --text-1:#1f2328; --text-2:#57606a; --text-3:#6e7781;
+  --accent:#0969da; --accent-bright:#0550ae; --accent-strong:#0969da; --accent-deep:#b6d4f7;
+  --success:#1a7f37; --success-bright:#2da44e; --success-btn:#1f883d; --success-btn-hover:#1a7f37;
+  --warn:#9a6700; --warn-bright:#bf8700; --orange:#bc4c00; --orange-dim:#a04100;
+  --danger:#d1242f; --danger-btn:#cf222e;
+  --purple:#8250df; --purple-bright:#6639ba; --teal:#0c7d6c;
+}
+/* GT: Deep Black (#000) mit roten Akzenten; Glows entstehen automatisch,
+ * weil alle Glow-Regeln color-mix auf var(--accent) nutzen. */
+html[data-theme="gt"]{
+  --bg:#000000; --bg-card:#0e0e10; --bg-hover:#1b1b1e; --bg-active:#28282d;
+  --border-soft:#1e1e22; --border:#33333a;
+  --text-1:#f0f0f2; --text-2:#9b9ba3; --text-3:#6f6f76;
+  --accent:#ff3b46; --accent-bright:#ff6169; --accent-strong:#e0212d; --accent-deep:#67060c;
+}
+html[data-theme="gt"] .btn-primary{box-shadow:0 0 10px color-mix(in srgb,var(--accent) 45%,transparent)}
+html[data-theme="gt"] .card,html[data-theme="gt"] .modal{box-shadow:0 0 16px rgba(0,0,0,.65)}
+
+/* ── Buttons ─────────────────────────────────────────────────── */
+.btn{padding:0.4rem 0.8rem;border-radius:6px;border:1px solid var(--success-btn);background:var(--success-btn);color:#fff;font-size:0.8rem;font-weight:500;cursor:pointer;text-decoration:none;display:inline-block}
+.btn:hover{background:var(--success-btn-hover);text-decoration:none}
+.btn-sm{padding:0.25rem 0.5rem;font-size:0.75rem}
+.btn-outline{background:transparent;border-color:var(--border);color:var(--text-1)}
+.btn-outline:hover{background:var(--bg-hover)}
+.btn-cancel{background:var(--bg-hover);border:1px solid var(--border);color:var(--text-1);padding:0.4rem 0.8rem;border-radius:6px;font-size:0.8rem;cursor:pointer}
+.btn-cancel:hover{background:var(--bg-active)}
+.btn-delete,.btn-danger{padding:0.4rem 0.8rem;border-radius:6px;border:1px solid var(--danger);background:transparent;color:var(--danger);font-size:0.8rem;cursor:pointer}
+.btn-delete:hover,.btn-danger:hover{background:var(--danger);color:#fff}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+.btn-primary:hover{background:var(--accent-bright);border-color:var(--accent-bright)}
+
+/* ── Cards ────────────────────────────────────────────────────── */
+.card{background:var(--bg-card);border:1px solid var(--border-soft);border-radius:8px;padding:1rem;overflow:hidden}
+.card h2{font-size:0.9rem;color:var(--accent);margin-bottom:0.8rem;font-weight:600}
+
+/* ── Tables ──────────────────────────────────────────────────── */
+table{width:100%;border-collapse:collapse;font-size:0.85rem}
+th{text-align:left;color:var(--text-2);font-weight:500;padding:0.5rem 0.6rem;border-bottom:1px solid var(--border-soft)}
+td{padding:0.5rem 0.6rem;border-bottom:1px solid var(--border-soft)}
+tr:hover td{background:var(--bg-card)}
+.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* ── Forms ───────────────────────────────────────────────────── */
+.form-group{margin-bottom:0.7rem}
+.form-group label{display:block;font-size:0.8rem;color:var(--text-2);margin-bottom:0.2rem}
+.form-group input,.form-group textarea,.form-group select{width:100%;background:var(--bg);color:var(--text-1);border:1px solid var(--border);border-radius:4px;padding:0.35rem 0.5rem;font-size:0.85rem}
+.form-group input:focus,.form-group textarea:focus,.form-group select:focus{border-color:var(--accent);outline:none}
+.form-group textarea{min-height:60px;resize:vertical}
+.form-actions{display:flex;gap:0.5rem;justify-content:flex-end;margin-top:0.8rem}
+
+/* ── Modal ───────────────────────────────────────────────────── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:none}
+.modal-overlay.open{display:flex;align-items:center;justify-content:center}
+.modal{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:1.2rem;width:480px;max-width:95vw;max-height:85vh;overflow-y:auto}
+.modal h3{font-size:0.95rem;margin-bottom:0.8rem;color:var(--accent)}
+
+/* ── Status-/Empty-States ─────────────────────────────────────── */
+.empty,.no-data{text-align:center;color:var(--text-2);padding:2rem;font-size:0.9rem}
+.stats{font-size:0.75rem;color:var(--text-2);margin-left:auto}
+.hint{font-size:0.75rem;color:var(--warn);margin-top:0.8rem;padding:0.5rem 0.6rem;border:1px solid var(--border);border-radius:6px;background:var(--bg-card)}
+
+/* ── Links ────────────────────────────────────────────────────── */
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* ── Print: Map weglassen wenn Drucker (analog charge_print.html) ── */
+@media print{.tab-bar,.profile-picker,.veh-picker{display:none !important}}
+
+/* ── Tastatur-Fokus global sichtbar (Dark-Theme A11y, FIXES 12.17) ──
+ * Additive, niedrig-spezifische Regel: greift nur fuer Keyboard-Fokus
+ * (:focus-visible), ueberschreibt keine spezifischeren :focus-Stile
+ * (z.B. .form-group input:focus). */
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* ── Karten-Badges & Marker-Cluster (geteilt von index/trip_detail/journey_detail) ── */
+.map-icon-badge{width:15px;height:15px;border-radius:4px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.7);overflow:hidden}
+.cluster-grid{display:grid;gap:2px}
+.cluster-grid.g2{grid-template-columns:auto auto}
+.cluster-grid.g1{grid-template-columns:1fr}
+
+/* ── Touch-Targets (pointer:coarse): 36px-Konvention aus admin (5.7) global ──
+   Nur auf Touch-Geraeten wirksam; Desktop-Layout unveraendert. Inline-Icons
+   (btn-clear-addr) und der Header-Vehicle-Picker bekommen eine unsichtbare
+   Hit-Area statt sichtbarer Vergroesserung (vertikal, um Nachbarn nicht zu
+   ueberdecken). */
+@media (pointer:coarse){
+  .btn,.btn-sm,.quick-btn,.notes-add-btn,
+  .toolbar button,.toolbar a,.toolbar select,.toolbar input[type="date"]{
+    min-height:36px;
+  }
+  .btn-clear-addr{position:relative}
+  .btn-clear-addr::after{content:"";position:absolute;inset:-11px 0}
+  .veh-picker{position:relative}
+  .veh-picker::after{content:"";position:absolute;inset:-7px 0}
+}
+
+/* ── Native date/time picker icon: make the calendar button visible ──
+ * The native ::-webkit-calendar-picker-indicator is a dark glyph and vanishes
+ * on the dark theme (e.g. the admin .fld date fields had no icon at all). Invert
+ * it globally for dark themes; leave the light theme untouched. */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator{cursor:pointer}
+:root:not([data-theme="light"]) input[type="date"]::-webkit-calendar-picker-indicator,
+:root:not([data-theme="light"]) input[type="datetime-local"]::-webkit-calendar-picker-indicator{filter:invert(0.8)}
+
+/* ── Shared date-range picker (Grafana-style; templates/_daterange.html) ──── */
+.drp{position:relative;display:inline-block}
+.drp-toggle{display:inline-flex;align-items:center;gap:0.4rem;padding:0.35rem 0.7rem;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text-1);font-size:0.8rem;font-family:inherit;line-height:1.2;cursor:pointer;white-space:nowrap}
+.drp-toggle:hover{border-color:var(--accent)}
+.drp-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.drp-cal{opacity:0.7;flex-shrink:0}
+.drp-chev{opacity:0.5;transition:transform .2s;flex-shrink:0}
+.drp.open .drp-chev{transform:rotate(180deg)}
+.drp-panel{display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:600;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.5);padding:0.7rem}
+.drp.open .drp-panel{display:block}
+.drp-cols{display:flex;gap:1rem}
+.drp-group{display:flex;flex-direction:column;gap:0.15rem;min-width:138px}
+.drp-group-title{font-size:0.66rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-2);margin-bottom:0.25rem;padding:0 0.2rem}
+.drp-preset{text-align:left;padding:0.35rem 0.5rem;border-radius:6px;border:1px solid transparent;background:none;color:var(--text-1);font-size:0.8rem;font-family:inherit;cursor:pointer;white-space:nowrap}
+.drp-preset:hover{background:var(--bg-hover)}
+.drp-preset:focus-visible{outline:2px solid var(--accent);outline-offset:-1px}
+.drp-preset.active{background:color-mix(in srgb,var(--accent) 18%,transparent);border-color:var(--accent);color:var(--accent)}
+.drp-custom{margin-top:0.7rem;padding-top:0.7rem;border-top:1px solid var(--border-soft);display:flex;flex-wrap:wrap;align-items:flex-end;gap:0.5rem}
+.drp-custom-title{flex-basis:100%;font-size:0.66rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-2)}
+.drp-custom label{display:flex;flex-direction:column;gap:0.2rem;font-size:0.68rem;color:var(--text-2)}
+.drp-custom input[type="date"]{padding:0.3rem 0.4rem;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text-1);font-size:0.8rem;font-family:inherit}
+.drp-actions{display:flex;gap:0.4rem;margin-left:auto;align-items:flex-end}
+.drp-reset{padding:0.35rem 0.7rem;border-radius:6px;border:1px solid var(--border);background:none;color:var(--text-2);font-size:0.78rem;font-family:inherit;cursor:pointer}
+.drp-reset:hover{color:var(--text-1);border-color:var(--text-2)}
+.drp-apply{padding:0.35rem 0.9rem;border-radius:6px;border:1px solid var(--success-btn);background:var(--success-btn);color:#fff;font-size:0.78rem;font-family:inherit;cursor:pointer}
+.drp-apply:hover{background:var(--success-btn-hover)}
+@media(max-width:560px){.drp-cols{flex-direction:column;gap:0.5rem}.drp-group{min-width:0}.drp-panel{left:0;right:0;min-width:0}.drp-custom{flex-direction:column;align-items:stretch}.drp-actions{margin-left:0;justify-content:flex-end}}
