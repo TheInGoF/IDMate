@@ -1,0 +1,1758 @@
+{% extends "_base.html" %}
+
+{% block doc_title %}ID·Mate — {{ t.analysis_title }}{% endblock %}
+{% block page_title %}{{ t.analysis_title }}{% endblock %}
+
+{% block extra_head %}
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1/dist/leaflet.min.css">
+{% endblock %}
+
+{% block extra_style %}
+<style>
+    .toolbar{display:flex;gap:0.5rem;padding:0.8rem 1rem;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--border-soft);max-width:1200px;margin:0 auto}
+    .toolbar input[type="date"],.toolbar button{
+      padding:0.35rem 0.7rem;border-radius:6px;border:1px solid var(--border);
+      background:var(--bg-card);color:var(--text-1);font-size:0.8rem;cursor:pointer}
+    .toolbar input[type="date"]{width:130px}
+    .toolbar input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(0.7)}
+    .toolbar button:hover{background:var(--bg-hover)}
+    .toolbar .quick-btn{font-size:0.7rem;padding:0.25rem 0.5rem;color:var(--text-2);border-color:var(--border-soft)}
+    .toolbar .quick-btn:hover,.toolbar .quick-btn.active{color:var(--text-1);border-color:var(--accent)}
+
+    .page-header{position:sticky;top:0;z-index:1000;background:var(--bg);overflow-x:clip}
+    .sub-tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+    .sub-tabs::-webkit-scrollbar{display:none}
+
+    /* Sub-tabs */
+    .sub-tabs{display:flex;justify-content:center;gap:0;max-width:1200px;margin:0 auto}
+    .sub-tab{padding:0.6rem 1.2rem;font-size:0.85rem;color:var(--text-2);cursor:pointer;background:none;border:none}
+    .sub-tab:hover{color:var(--text-1)}
+    .sub-tab.active{color:var(--accent);text-shadow:0 0 8px color-mix(in srgb,var(--accent) 70%,transparent),0 0 18px color-mix(in srgb,var(--accent) 35%,transparent)}
+    .tab-panel{display:none;max-width:1200px;margin:0 auto;overflow-x:hidden}
+    .tab-panel.active{display:block}
+
+    .charts{display:grid;grid-template-columns:1fr 1fr;gap:1rem;padding:1rem}
+    .chart-card{background:var(--bg-card);border:1px solid var(--border-soft);border-radius:8px;padding:1rem;overflow:hidden;min-width:0}
+    .chart-card h3{font-size:0.8rem;color:var(--text-2);margin-bottom:0.6rem;font-weight:500}
+    .chart-card canvas{width:100%!important;height:250px!important}
+    .chart-card.wide{grid-column:1/-1}
+
+    .loading-overlay{display:flex;align-items:center;justify-content:center;gap:0.6rem;padding:2rem;color:var(--text-2);font-size:0.85rem}
+    .spinner{width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .no-data{text-align:center;color:var(--text-2);padding:1.5rem 1rem;font-size:0.85rem}
+    .chart-card .no-data~canvas,.chart-card .no-data+canvas{display:none}
+    .chart-card.no-chart-data canvas{display:none}
+    .chart-card.no-chart-data{min-height:0}
+    /* 14.5 / 14.6: Fuss-/Untertitel-Zeilen pro Card */
+    .chart-footnote{font-size:0.72rem;color:var(--text-2);margin-top:0.4rem;font-style:italic}
+    .chart-subtitle{font-size:0.72rem;color:var(--text-2);margin:-0.3rem 0 0.5rem}
+    .map-hint{font-size:0.78rem;color:var(--text-2);text-align:center;margin:0.4rem 0 0.2rem}
+
+    /* Summary stats */
+    .summary{display:flex;gap:1rem;padding:1rem;flex-wrap:wrap}
+    .stat-card{background:var(--bg-card);border:1px solid var(--border-soft);border-radius:8px;padding:0.8rem 1rem;flex:1;min-width:140px;text-align:center}
+    .stat-card .val{font-size:1.4rem;font-weight:600;color:var(--accent)}
+    .stat-card .lbl{font-size:0.75rem;color:var(--text-2);margin-top:0.2rem}
+
+    /* Heatmap */
+    .heatmap-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+    .heatmap{display:grid;grid-template-columns:auto repeat(24,minmax(14px,1fr));gap:1px;font-size:0.72rem;min-width:400px}
+    .heatmap .hm-label{color:var(--text-2);display:flex;align-items:center;justify-content:flex-end;padding-right:4px;white-space:nowrap}
+    .heatmap .hm-hlabel{color:var(--text-2);text-align:center;padding:2px 0}
+    .heatmap .hm-cell{border-radius:2px;aspect-ratio:1;min-width:0;position:relative;cursor:default}
+    .heatmap .hm-cell:hover::after,.heatmap .hm-cell.tapped::after{content:attr(data-tip);position:absolute;bottom:110%;left:50%;transform:translateX(-50%);background:var(--bg-active);color:var(--text-1);padding:2px 6px;border-radius:4px;font-size:0.72rem;white-space:nowrap;z-index:10;pointer-events:none}
+    /* 14.13: Touch — Tap zeigt den Tooltip (Hover existiert auf Mobile nicht). */
+    .heatmap .hm-cell{cursor:pointer}
+
+    @media(max-width:700px){
+      .charts{grid-template-columns:1fr}
+      .chart-card.wide{grid-column:auto}
+      .heatmap{font-size:0.72rem}
+      #scratchMap{height:360px!important}
+      #heatMap{height:360px!important}
+    }
+    #scratchMap.leaflet-container,#scratchMap .leaflet-container{background:var(--bg)!important}
+    #heatMap.leaflet-container,#heatMap .leaflet-container{background:var(--bg)!important}
+    .scratch-tip{background:var(--bg-card);border:1px solid var(--border);color:var(--text-1);font-size:0.75rem;border-radius:4px;padding:2px 6px}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="content">
+
+  <div class="toolbar">
+    {% include "_daterange.html" %}
+  </div>
+
+  <div class="sub-tabs">
+    <button class="sub-tab active" data-onclick="showTab" data-args='["fahrten"]'>{{ t.analysis_tab_trips }}</button>
+    <button class="sub-tab" data-onclick="showTab" data-args='["zwecke"]'>{{ t.analysis_tab_purposes }}</button>
+    <button class="sub-tab" data-onclick="showTab" data-args='["batterie"]'>{{ t.analysis_tab_battery }}</button>
+    <button class="sub-tab" data-onclick="showTab" data-args='["effizienz"]'>{{ t.analysis_tab_efficiency }}</button>
+    <button class="sub-tab" data-onclick="showTab" data-args='["laden"]'>{{ t.analysis_tab_charging }}</button>
+    <button class="sub-tab" data-onclick="showTab" data-args='["karte"]'>{{ t.analysis_tab_map }}</button>
+  </div>
+  </div><!-- /page-header -->
+
+  <!-- Tab: Trips -->
+  <div class="tab-panel active" id="tab-fahrten">
+    <div class="summary" id="tripsSummary"></div>
+    <div class="charts" id="chartsTrips">
+      <div class="no-data" id="noData">{{ t.analysis_select_range }}</div>
+    </div>
+  </div>
+
+  <!-- Tab: Purposes -->
+  <div class="tab-panel" id="tab-zwecke">
+    <div class="summary" id="purposeSummary"></div>
+    <div class="charts" id="chartsPurpose"></div>
+  </div>
+
+  <!-- Tab: Battery -->
+  <div class="tab-panel" id="tab-batterie">
+    <div class="charts" id="chartsBattery"></div>
+  </div>
+
+  <!-- Tab: Efficiency -->
+  <div class="tab-panel" id="tab-effizienz">
+    <div class="summary" id="effSummary"></div>
+    <div class="charts" id="chartsEfficiency"></div>
+  </div>
+
+  <!-- Tab: Charging -->
+  <div class="tab-panel" id="tab-laden">
+    <div class="summary" id="chargeSummary"></div>
+    <div class="charts" id="chartsChargeCycles"></div>
+    <div class="charts" id="chartsCharge"></div>
+  </div>
+
+  <!-- Tab: World Map -->
+  <div class="tab-panel" id="tab-karte">
+    <div id="scratchMapWrap" style="position:relative;padding:1rem">
+      <div id="scratchMap" style="height:520px;border-radius:8px;border:1px solid var(--border-soft);background:var(--bg)"></div>
+      <div id="scratchStats" style="margin-top:0.6rem;font-size:0.82rem;color:var(--text-2);text-align:center"></div>
+      <!-- 14.4: Karten gehorchen dem Datumsfilter nicht. -->
+      <div class="map-hint">{{ t.analysis_map_alltime_hint }}</div>
+    </div>
+    <div id="heatMapWrap" style="position:relative;padding:0 1rem 1rem">
+      <h3 style="color:var(--text-1);font-size:0.9rem;margin:0.8rem 0 0.5rem">{{ t.analysis_heatmap }}</h3>
+      <div id="heatMap" style="height:520px;border-radius:8px;border:1px solid var(--border-soft);background:var(--bg)"></div>
+      <div class="map-hint">{{ t.analysis_map_alltime_hint }}</div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1/dist/leaflet.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <script nonce="{{ csp_nonce }}">
+  // CSP-Wrapper (7.2)
+  function retryBatterie(){ _tabDirty.batterie=true; renderTab('batterie'); }
+
+  // The date-range picker is shared (static/daterange.js). It stores the range
+  // and then calls this hook instead of reloading, so Analysis re-fetches via AJAX.
+  window.onDateRangeApply = function(){ loadAnalysis(); };
+
+    function showTab(name) {
+      document.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      const btn = document.querySelector(`.sub-tab[onclick*="'${name}'"]`);
+      if (btn) btn.classList.add('active');
+      document.getElementById('tab-' + name).classList.add('active');
+      // C2: Lazy rendering for data tabs
+      renderTab(name);
+      // Leaflet-Map-Tabs: invalidateSize wird unten im showTab-Hook (Z. ~1495)
+      // nach loadScratchMap/loadHeatMap mit Doppel-RAF nachgezogen.
+    }
+
+    const chartInstances = {};
+
+    // C3: Global tooltip defaults
+    Chart.defaults.plugins.tooltip.backgroundColor = TC.bgCard;
+    Chart.defaults.plugins.tooltip.borderColor = TC.border;
+    Chart.defaults.plugins.tooltip.borderWidth = 1;
+    Chart.defaults.plugins.tooltip.titleColor = TC.text1;
+    Chart.defaults.plugins.tooltip.bodyColor = TC.text2;
+    Chart.defaults.plugins.tooltip.cornerRadius = 6;
+    Chart.defaults.plugins.tooltip.padding = 8;
+    Chart.defaults.plugins.tooltip.callbacks.label = function(ctx) {
+      const type = ctx.chart?.config?.type;
+      const ds = ctx.dataset;
+      // Pie / doughnut: segment name + value + percentage + unit (14.3)
+      if (type === 'pie' || type === 'doughnut') {
+        const label = ctx.label || '';
+        const val = ctx.parsed;
+        const arr = ctx.chart?.data?.datasets?.[ctx.datasetIndex]?.data || [];
+        const total = arr.reduce((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+        const pct = total > 0 ? Math.round(val / total * 1000) / 10 : 0;
+        const unit = ds.unit || '';
+        const valStr = Math.round(val * 100) / 100;
+        return `${label}: ${valStr}${unit ? ' ' + unit : ''} (${pct} %)`;
+      }
+      // Scatter: show BOTH x and y with their axis titles (14.11)
+      if (type === 'scatter') {
+        const xTitle = ctx.chart?.options?.scales?.x?.title?.text || 'x';
+        const yTitle = ctx.chart?.options?.scales?.y?.title?.text || 'y';
+        const x = ctx.parsed?.x;
+        const y = ctx.parsed?.y;
+        const xStr = typeof x === 'number' ? Math.round(x * 100) / 100 : x;
+        const yStr = typeof y === 'number' ? Math.round(y * 100) / 100 : y;
+        return `${xTitle}: ${xStr} · ${yTitle}: ${yStr}`;
+      }
+      // Default (line / bar): series label + value + y-axis unit
+      const val = ctx.parsed?.y ?? ctx.parsed ?? ctx.raw;
+      const label = ds.label || '';
+      const yTitle = ctx.chart?.options?.scales?.y?.title?.text || '';
+      if (typeof val === 'number') return `${label}: ${Math.round(val * 100) / 100} ${yTitle}`;
+      return `${label}: ${val}`;
+    };
+
+    // Hover across the whole x-position: tooltip shows every series' value at
+    // that point, not just the hovered marker.
+    Chart.defaults.interaction.mode = 'index';
+    Chart.defaults.interaction.intersect = false;
+
+    // Vertical crosshair line at the hovered x-position (cartesian charts only).
+    Chart.register({
+      id: 'crosshair',
+      afterDraw(chart) {
+        const active = chart.tooltip && chart.tooltip._active;
+        if (!active || !active.length || !chart.chartArea) return;
+        const type = chart.config.type;
+        if (type === 'pie' || type === 'doughnut') return;
+        const x = active[0].element.x;
+        const { top, bottom } = chart.chartArea;
+        const ctx = chart.ctx;
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(x, top);
+        ctx.lineTo(x, bottom);
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = 'rgba(139,148,158,0.45)';
+        ctx.stroke();
+        ctx.restore();
+      }
+    });
+
+    // ── Outlier filter ──
+    function percentile(arr, p) {
+      const sorted = arr.filter(v => v != null && isFinite(v)).sort((a, b) => a - b);
+      if (!sorted.length) return null;
+      // Lineare Interpolation: percentile([1..10], 0.5) = 5.5, nicht 4.
+      const rank = (sorted.length - 1) * p;
+      const lo = Math.floor(rank), hi = Math.ceil(rank);
+      if (lo === hi) return sorted[lo];
+      return sorted[lo] + (sorted[hi] - sorted[lo]) * (rank - lo);
+    }
+
+    function yBounds(values) {
+      const nums = values.filter(v => v != null && isFinite(v));
+      // Mindestschwelle 10 statt 4 — bei < 10 Werten ist 5/95-Perzentil-Clipping
+      // statistisch sinnlos und schneidet echte Min/Max-Trips visuell ab.
+      if (nums.length < 10) return {};
+      const lo = percentile(nums, 0.05);
+      const hi = percentile(nums, 0.95);
+      if (lo === hi) return {};
+      const pad = (hi - lo) * 0.1;
+      return { min: Math.max(0, lo - pad), max: hi + pad };
+    }
+
+    // Hampel-Filter: robuste Ausreißer-Erkennung per GLEITENDEM Median + MAD
+    // (Median Absolute Deviation). Liefert ein Array, in dem als Ausreißer
+    // erkannte Werte = null sind — gedacht NUR für die Trendberechnung; die
+    // angezeigten Punkte/Balken bleiben unberührt. Lokal & adaptiv (folgt dem
+    // Saisontrend), robust (Median/MAD lassen sich vom Ausreißer nicht verbiegen).
+    //   win = Nachbarn je Seite, k = MAD-Schwelle (~3 ≈ 3σ),
+    //   oneSided='upper' verwirft nur Spikes nach oben (z.B. Verbrauch).
+    // Bei zu wenigen Punkten Fallback auf globales 5/95-Perzentil.
+    function hampelFilter(values, win, k, oneSided) {
+      win = win || 3; k = k || 3;
+      const out = values.map(v => (v != null && isFinite(v)) ? v : null);
+      const idx = out.map((v, i) => i).filter(i => out[i] != null);
+      const med = a => { const s = [...a].sort((x, y) => x - y); const m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+      if (idx.length < 2 * win + 1) {
+        const valid = idx.map(i => out[i]);
+        const hi = percentile(valid, 0.95), lo = percentile(valid, 0.05);
+        return out.map(v => v == null ? null : (oneSided === 'upper' ? (v <= hi ? v : null) : (v >= lo && v <= hi ? v : null)));
+      }
+      for (let p = 0; p < idx.length; p++) {
+        const lo = Math.max(0, p - win), hiP = Math.min(idx.length, p + win + 1);
+        const w = idx.slice(lo, hiP).map(j => out[j]);
+        const m = med(w);
+        const mad = 1.4826 * med(w.map(x => Math.abs(x - m)));  // auf σ skaliert
+        const thr = k * (mad || 1e-9);
+        const dev = out[idx[p]] - m;
+        if (oneSided === 'upper' ? dev > thr : Math.abs(dev) > thr) out[idx[p]] = null;
+      }
+      return out;
+    }
+
+    function applyBounds(yScale, bounds) {
+      if (bounds.min !== undefined) yScale.min = bounds.min;
+      if (bounds.max !== undefined) yScale.max = bounds.max;
+    }
+
+    // ── 13.3 km-weighted average consumption (Σ kWh / Σ km × 100) ──
+    // Single source of truth used by the Trips card, the Efficiency card,
+    // estRange and the monthly consumption bars. Predicate unified on
+    // km>0 && kwh>0 everywhere — no per-trip arithmetic mean.
+    function kmWeightedAvg(trips) {
+      let wKwh = 0, wKm = 0;
+      (trips || []).forEach(t => {
+        if (t.km != null && t.km > 0 && t.kwh != null && t.kwh > 0) { wKwh += t.kwh; wKm += t.km; }
+      });
+      return wKm > 0 ? wKwh / wKm * 100 : 0;
+    }
+
+    // ── 13.9 contiguous month axis ──
+    // Given a list of 'YYYY-MM' keys, return every month from the earliest to
+    // the latest inclusive (no gaps) — analog zur Odo-Tages-Timeline und den
+    // Kosten-Charts (8.8/8.9). Empty input → []; single month → [that month].
+    function monthRange(monthKeys) {
+      const keys = (monthKeys || []).filter(Boolean).slice().sort();
+      if (!keys.length) return [];
+      const out = [];
+      const [y0, m0] = keys[0].split('-').map(Number);
+      const [y1, m1] = keys[keys.length - 1].split('-').map(Number);
+      let y = y0, m = m0;
+      // Guard against malformed input that would otherwise loop forever.
+      let guard = 0;
+      while ((y < y1 || (y === y1 && m <= m1)) && guard++ < 1200) {
+        out.push(`${y}-${String(m).padStart(2, '0')}`);
+        m++; if (m > 12) { m = 1; y++; }
+      }
+      return out;
+    }
+
+    // ── 13.8 trip-duration plausibility filter ──
+    // Verschmolzene Fahrten ausschliessen: der Detector zaehlt gelegentlich eine
+    // nicht erkannte Pause mit und verschmilzt zwei Fahrten zu einer unrealistisch
+    // langen. Solche Eintraege haben fuer ihre Dauer eine viel zu niedrige
+    // Ø-Geschwindigkeit (v = km / (duration_min/60)).
+    // EINE Funktion fuer Ø-Dauer-Card, Dauer-Chart UND Scatter — identische
+    // Schwellen, v-Obergrenze vereinheitlicht (DUR_V_MAX).
+    const DUR_V_MIN = 5;            // km/h: darunter keine echte Einzelfahrt
+    const DUR_V_MAX = 130;          // km/h: darueber Daten-/GPS-Artefakt
+    const DUR_LONG_MIN = 120;       // min: ab hier strengere v-Untergrenze
+    const DUR_LONG_V_MIN = 25;      // km/h: lange Fahrt darunter = verschmolzene Pause
+    const DUR_HARD_MAX_MIN = 8 * 60; // min: absolute Obergrenze (8 h)
+    function passesDurationFilter(t) {
+      const min = t.duration_min;
+      const km = t.km;
+      if (!(min != null && Number.isFinite(min) && min > 0)) return false;
+      if (min > DUR_HARD_MAX_MIN) return false;
+      if (!(km != null && Number.isFinite(km) && km > 0)) return false;
+      const v = km / (min / 60);                       // Ø-Geschwindigkeit km/h
+      if (!Number.isFinite(v) || v < DUR_V_MIN || v > DUR_V_MAX) return false;
+      if (min > DUR_LONG_MIN && v < DUR_LONG_V_MIN) return false; // verschmolzene Pause
+      return true;
+    }
+
+    // 14.13: ISO-Achsenlabels lesbar formatieren — "2026-06-01" -> "01.06."
+    // (de) / "Jun 26"; "2026-06" -> Monat. Nicht-Datums-Labels bleiben roh.
+    function fmtAxisLabel(raw) {
+      const s = String(raw == null ? '' : raw);
+      const mDay = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (mDay) {
+        const d = new Date(+mDay[1], +mDay[2] - 1, +mDay[3]);
+        return d.toLocaleDateString(_LOCALE, { day: '2-digit', month: '2-digit' });
+      }
+      const mMon = s.match(/^(\d{4})-(\d{2})$/);
+      if (mMon) {
+        const d = new Date(+mMon[1], +mMon[2] - 1, 1);
+        return d.toLocaleDateString(_LOCALE, { month: 'short', year: '2-digit' });
+      }
+      return raw;
+    }
+    // Chart.js ticks-Callback: bekommt den Tick-Index, holt das Roh-Label.
+    function axisDateTick(value, index, ticks) {
+      const raw = this.getLabelForValue ? this.getLabelForValue(value) : value;
+      return fmtAxisLabel(raw);
+    }
+
+    function makeChart(id, label, labels, data, color, yLabel, extraOpts) {
+      if (chartInstances[id]) chartInstances[id].destroy();
+      const ctx = document.getElementById(id).getContext('2d');
+      const yScale = { title: { display: true, text: yLabel, color: TC.text2, font: { size: 10 } }, ticks: { color: TC.text2, font: { size: 10 } }, grid: { color: TC.borderSoft } };
+      if (extraOpts?.beginAtZero === false) yScale.beginAtZero = false;
+      if (!extraOpts?.noFilter) applyBounds(yScale, yBounds(data));
+      chartInstances[id] = new Chart(ctx, {
+        type: 'line',
+        data: { labels, datasets: [{ label, data, borderColor: color, backgroundColor: color + '22', borderWidth: 1.5, pointRadius: 1, fill: true, tension: 0.3, spanGaps: true }] },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: TC.text2, font: { size: 10 }, maxTicksLimit: 8, callback: axisDateTick }, grid: { color: TC.borderSoft } },
+            y: yScale
+          }
+        }
+      });
+    }
+
+    function makeBarChart(id, label, labels, data, color, yLabel, extraOpts) {
+      if (chartInstances[id]) chartInstances[id].destroy();
+      const ctx = document.getElementById(id).getContext('2d');
+      const yScale = { title: { display: true, text: yLabel, color: TC.text2, font: { size: 10 } }, ticks: { color: TC.text2, font: { size: 10 } }, grid: { color: TC.borderSoft } };
+      if (!extraOpts?.noFilter) applyBounds(yScale, yBounds(data));
+      // Log-Achse für stark gespreizte Werte (z.B. Strecke/Fahrt: einzelne
+      // Langstrecken neben vielen kurzen Stadtfahrten) — zeigt den echten
+      // Max-Wert, ohne die kleinen Balken unsichtbar zu stauchen.
+      // 14.1: Achsen-Titel kennzeichnen, dass die Skala logarithmisch ist.
+      if (extraOpts?.logScale) { yScale.type = 'logarithmic'; yScale.title.text = yLabel + '{{ t.analysis_log_scale_suffix }}'; }
+      chartInstances[id] = new Chart(ctx, {
+        type: 'bar',
+        data: { labels, datasets: [{ label, data, backgroundColor: color + '88', borderColor: color, borderWidth: 1 }] },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: TC.text2, font: { size: 10 }, maxTicksLimit: 8, callback: axisDateTick }, grid: { color: TC.borderSoft } },
+            y: yScale
+          }
+        }
+      });
+    }
+
+    function makePieChart(id, labels, data, colors, unit) {
+      if (chartInstances[id]) chartInstances[id].destroy();
+      const ctx = document.getElementById(id).getContext('2d');
+      chartInstances[id] = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels,
+          datasets: [{
+            data,
+            unit: unit || '',
+            backgroundColor: colors,
+            borderColor: TC.bg,
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'right', labels: { color: TC.text1, font: { size: 11 }, padding: 12 } }
+          }
+        }
+      });
+    }
+
+    let purposeColors = {};
+    // Load purpose colors
+    fetch('/api/fahrtenbuch/options').then(r => r.json()).then(opts => {
+      (opts.purpose_meta || []).forEach(m => { purposeColors[m.name] = m.color; });
+    });
+
+    function renderHeatmap(containerId, rowLabels, grid, color, unit) {
+      const el = document.getElementById(containerId);
+      const max = Math.max(1, ...grid.flat());
+      // Parse base color
+      const r0 = parseInt(color.slice(1,3), 16);
+      const g0 = parseInt(color.slice(3,5), 16);
+      const b0 = parseInt(color.slice(5,7), 16);
+
+      let html = '<div class="heatmap-wrap"><div class="heatmap">';
+      // Header row
+      html += '<div></div>';
+      for (let h = 0; h < 24; h++) html += `<div class="hm-hlabel">${h}</div>`;
+      // Data rows
+      for (let d = 0; d < 7; d++) {
+        html += `<div class="hm-label">${rowLabels[d]}</div>`;
+        for (let h = 0; h < 24; h++) {
+          const v = grid[d][h];
+          // sqrt-Mapping statt linear: ohne diese Skala dominiert ein Outlier-Wert
+          // den Plot und alle anderen aktiven Zellen werden visuell unleserlich
+          // dunkel — Trip-Counts sind in der Praxis log-/sqrt-verteilt.
+          const intensity = max > 0 ? Math.sqrt(v / max) : 0;
+          const bg = v === 0
+            ? 'rgba(255,255,255,0.03)'
+            : `rgba(${r0},${g0},${b0},${(0.15 + intensity * 0.85).toFixed(2)})`;
+          const label = unit ? `${Math.round(v * 10) / 10}${unit}` : v;
+          html += `<div class="hm-cell" style="background:${bg}" data-tip="${esc(String(rowLabels[d]))} ${h}:00 — ${esc(String(label))}"></div>`;
+        }
+      }
+      html += '</div></div>';
+      el.innerHTML = html;
+      // 14.13: Tap-Handler für Touch — zeigt/versteckt den Tooltip einer Zelle.
+      el.querySelectorAll('.hm-cell').forEach(cell => {
+        cell.addEventListener('click', () => {
+          const wasOn = cell.classList.contains('tapped');
+          el.querySelectorAll('.hm-cell.tapped').forEach(c => c.classList.remove('tapped'));
+          if (!wasOn) cell.classList.add('tapped');
+        });
+      });
+    }
+
+    // Cache for re-render without additional API call
+    let _cachedTrips = null;
+    let _cachedQs = '';
+    let _cachedChargeCycles = null;
+    let _cachedBatKwh = null;
+    let _cachedReal = null;
+
+    function showLoading(show) {
+      const el = document.getElementById('chartsTrips');
+      if (show) {
+        el.innerHTML = '<div class="loading-overlay"><div class="spinner"></div>{{ t.common_loading }}</div>';
+        document.getElementById('tripsSummary').innerHTML = '';
+      }
+    }
+
+    async function loadAnalysis() {
+      const from = document.getElementById('dateFrom').value;
+      const to = document.getElementById('dateTo').value;
+      const qs = from && to ? `?from=${from}&to=${to}` : '';
+      _cachedQs = qs;
+
+      showLoading(true);
+      // 14.8: sichtbares Fehler-Feedback mit Retry statt Endlos-Spinner.
+      try {
+        const res = await fetch(`/api/analysis${qs}`);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const analysisData = await res.json();
+        _cachedTrips = analysisData.trips || analysisData;  // Backwards compatible
+        _cachedChargeCycles = analysisData.charge_cycles || [];
+        _cachedBatKwh = analysisData.bat_kwh || null;
+        _cachedReal = analysisData.real || null;
+
+        // Only render active tab immediately, rest lazy (C2)
+        const activeTab = document.querySelector('.tab-panel.active')?.id?.replace('tab-', '') || 'fahrten';
+        _tabDirty = { fahrten: true, zwecke: true, batterie: true, effizienz: true, laden: true };
+        await renderTab(activeTab);
+      } catch (e) {
+        console.error('loadAnalysis error:', e);
+        document.getElementById('tripsSummary').innerHTML = '';
+        document.getElementById('chartsTrips').innerHTML =
+          '<div class="no-data">{{ t.analysis_load_error }}<br><button data-onclick="loadAnalysis" style="margin-top:0.6rem;padding:0.35rem 0.9rem;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text-1);font-size:0.8rem;cursor:pointer">{{ t.common_retry }}</button></div>';
+      }
+    }
+
+    // C2: Lazy tab rendering — only render active tab
+    let _tabDirty = {};
+    async function renderTab(name) {
+      if (!_cachedTrips) return;
+      if (!_tabDirty[name]) return;
+      _tabDirty[name] = false;
+      switch (name) {
+        case 'fahrten':
+          renderTripsTab(_cachedTrips);
+          break;
+        case 'zwecke':
+          renderPurposeTab(_cachedTrips);
+          break;
+        case 'batterie':
+          await renderBatteryTab(_cachedTrips);
+          break;
+        case 'effizienz':
+          await renderEfficiencyTab(_cachedTrips, _cachedQs);
+          break;
+        case 'laden':
+          renderChargeCycles(_cachedChargeCycles);
+          await renderChargeTab(_cachedQs);
+          break;
+      }
+    }
+
+    function renderChargeCycles(cycles) {
+      const el = document.getElementById('chartsChargeCycles');
+      if (!cycles || !cycles.length) {
+        el.innerHTML = '<div class="no-data">{{ t.analysis_no_charge_cycles }}</div>';
+        return;
+      }
+      const cons = cycles.map(c => c.consumption);
+
+      // Hampel-Filter NUR für den Trend: Ausreißer (Spikes nach oben, z.B.
+      // verschmolzene Pause km≈0) raus, damit sie den Trend nicht verzerren.
+      // Die Balken bleiben ALLE sichtbar (cons), die Achse robust (consForTrend).
+      const consForTrend = hampelFilter(cons.map(v => (v != null && v > 0) ? v : null), 3, 3, 'upper');
+
+      const dates = cycles.map(c => c.date);
+      const kwh = cycles.map(c => c.charged_kwh);
+      const km = cycles.map(c => c.km);
+
+      el.innerHTML = `
+        <div class="chart-card"><h3>{{ t.analysis_consumption_cycle }}</h3><canvas id="cCycleCons"></canvas><div class="chart-footnote">{{ t.analysis_trend_robust }}</div></div>
+        <div class="chart-card"><h3>{{ t.analysis_charged_vs_driven }}</h3><canvas id="cCycleDetail"></canvas></div>
+      `;
+
+      // Moving average for trend line (on filtered data)
+      function movingAvg(arr, w) {
+        return arr.map((_, i) => {
+          const start = Math.max(0, i - Math.floor(w / 2));
+          const end = Math.min(arr.length, i + Math.ceil(w / 2));
+          const slice = arr.slice(start, end).filter(x => x != null);
+          return slice.length ? Math.round(slice.reduce((a, b) => a + b, 0) / slice.length * 10) / 10 : null;
+        });
+      }
+      const trend = movingAvg(consForTrend, Math.max(3, Math.round(consForTrend.length / 5)));
+
+      const yScale = { title: { display: true, text: 'kWh/100km', color: TC.text2 },
+                       ticks: { color: TC.text2 }, grid: { color: TC.borderSoft } };
+      applyBounds(yScale, yBounds(consForTrend));  // robuste Achse, Spikes clampen oben
+
+      // Consumption per cycle
+      if (chartInstances['cCycleCons']) chartInstances['cCycleCons'].destroy();
+      chartInstances['cCycleCons'] = new Chart(document.getElementById('cCycleCons'), {
+        type: 'bar',
+        data: {
+          labels: dates,
+          datasets: [
+            { label: 'kWh/100km', data: cons, backgroundColor: TC.warn+'bb', order: 1 },
+            // Balken = ALLE Rohwerte (cons). Trend = Hampel-gefiltert; spanGaps:false,
+            // damit der Trend an Ausreißer-Positionen unterbricht statt sie zu
+            // ueberbruecken. 14.12: Trend-Linie neutral grau gestrichelt statt rot.
+            { label: 'Trend', data: trend, type: 'line', borderColor: TC.text2, backgroundColor: 'transparent', borderWidth: 2, borderDash: [6, 3], pointRadius: 0, tension: 0.4, spanGaps: false, order: 0 },
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { labels: { color: TC.text2, font: { size: 10 } } } },
+          scales: {
+            y: yScale,
+            x: { ticks: { color: TC.text2 }, grid: { color: TC.borderSoft } }
+          }
+        }
+      });
+
+      // Detail: kWh charged + km driven
+      new Chart(document.getElementById('cCycleDetail'), {
+        type: 'bar',
+        data: {
+          labels: dates,
+          datasets: [
+            // 14.12: Energie/kWh = Orange (var(--warn)), km = Blau (var(--accent)).
+            { label: '{{ t.analysis_kwh_charged }}', data: kwh, backgroundColor: TC.warn+'bb', yAxisID: 'yKwh' },
+            { label: '{{ t.analysis_km_driven }}', data: km, backgroundColor: TC.accent+'bb', yAxisID: 'yKm' },
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { labels: { color: TC.text1 } } },
+          scales: {
+            yKwh: { position: 'left', title: { display: true, text: 'kWh', color: TC.warn },
+                    ticks: { color: TC.warn }, grid: { color: TC.borderSoft } },
+            yKm: { position: 'right', title: { display: true, text: 'km', color: TC.accent },
+                   ticks: { color: TC.accent }, grid: { drawOnChartArea: false } },
+            x: { ticks: { color: TC.text2 }, grid: { color: TC.borderSoft } }
+          }
+        }
+      });
+    }
+
+    async function renderChargeTab(qs) {
+      const el = document.getElementById('chartsCharge');
+      el.innerHTML = '<div class="no-data">{{ t.common_loading }}</div>';
+      try {
+        const res = await fetch(`/api/charge/stats${qs}`);
+        const d = await res.json();
+
+        const noOp = !d.operators || !Object.keys(d.operators).length;
+        // Backend liefert neutrale Keys {home, external} (14.10).
+        const noHome = !d.home_vs_ext || ((d.home_vs_ext.home || 0) === 0 && (d.home_vs_ext.external || 0) === 0);
+        const totals = d.totals || {};
+
+        // B6: Summary cards
+        const sumEl = document.getElementById('chargeSummary');
+        if (totals.sessions) {
+          sumEl.innerHTML = `
+            <div class="stat-card"><div class="val">${totals.sessions}</div><div class="lbl">{{ t.analysis_sessions }}</div></div>
+            <div class="stat-card"><div class="val">${fmtNum(totals.kwh != null ? totals.kwh : 0)}</div><div class="lbl">{{ t.analysis_kwh_charged }}</div></div>
+            <div class="stat-card"><div class="val">${fmtNum(totals.cost != null ? totals.cost : 0, 2)} €</div><div class="lbl">{{ t.analysis_total_cost }}</div></div>
+            <div class="stat-card"><div class="val">${totals.avg_cost_kwh != null ? fmtNum(totals.avg_cost_kwh * 100, 1) + ' ct' : '–'}</div><div class="lbl">Ø ct/kWh</div></div>
+            <div class="stat-card"><div class="val">${totals.avg_duration_min != null ? Math.round(totals.avg_duration_min) + ' min' : '–'}</div><div class="lbl">{{ t.analysis_avg_duration }}</div></div>
+          `;
+        } else {
+          sumEl.innerHTML = '';
+        }
+
+        if (noHome && noOp) {
+          el.innerHTML = '<div class="no-data">{{ t.analysis_no_charge_sessions }}</div>';
+          return;
+        }
+
+        // B6: kWh/month stacked + B7: Charge power
+        const mHome = d.monthly_kwh_home || {};
+        const mExt = d.monthly_kwh_ext || {};
+        const allMonths = [...new Set([...Object.keys(mHome), ...Object.keys(mExt)])].sort();
+        const hasMonthly = allMonths.length > 0;
+        const allAvgKw = [...(d.avg_kw_ac || []), ...(d.avg_kw_dc || [])];
+        const hasAvgKw = allAvgKw.length > 0;
+
+        el.innerHTML = `
+          <div class="chart-card"><h3>{{ t.analysis_home_vs_ext }}</h3><canvas id="cChargeHomeExt"></canvas></div>
+          <div class="chart-card"><h3>{{ t.analysis_ac_vs_dc }}</h3><canvas id="cChargeAcDc"></canvas></div>
+          ${hasMonthly ? '<div class="chart-card wide"><h3>{{ t.analysis_kwh_per_month }}</h3><canvas id="cChargeMonthly"></canvas></div>' : ''}
+          ${hasAvgKw ? '<div class="chart-card wide"><h3>{{ t.analysis_charge_power }}</h3><canvas id="cChargePower"></canvas></div>' : ''}
+          ${noOp ? '' : '<div class="chart-card wide"><h3>{{ t.analysis_operators }}</h3><div id="opFilters" style="display:flex;flex-wrap:wrap;gap:0.3rem 0.8rem;margin-bottom:0.5rem;font-size:0.75rem"></div><canvas id="cChargeOp" style="height:280px!important"></canvas></div>'}
+        `;
+
+        // B6: Stacked bar chart kWh/month
+        if (hasMonthly) {
+          makeStackedBarChart('cChargeMonthly', allMonths, [
+            { label: '{{ t.analysis_home }}', data: allMonths.map(m => Math.round((mHome[m] || 0) * 10) / 10), backgroundColor: TC.accent+'88', borderColor: TC.accent, borderWidth: 1 },
+            { label: '{{ t.analysis_ext }}', data: allMonths.map(m => Math.round((mExt[m] || 0) * 10) / 10), backgroundColor: TC.warn+'88', borderColor: TC.warn, borderWidth: 1 },
+          ], 'kWh');
+        }
+
+        // B7: Charge power distribution (single combined histogram)
+        if (hasAvgKw) {
+          const bins = [0, 3, 7, 11, 22, 50, 100, 150, 250, 350];
+          const binLabels = [];
+          const binCounts = [];
+          for (let i = 0; i < bins.length; i++) {
+            const lo = bins[i];
+            const hi = bins[i + 1] || Infinity;
+            binLabels.push(hi === Infinity ? `>${lo}` : `${lo}–${hi}`);
+            binCounts.push(allAvgKw.filter(v => v >= lo && v < hi).length);
+          }
+          // Remove empty bins at both ends — User der nur DC-Schnellader nutzt
+          // hatte sonst 4 leere Bars am Anfang vor dem ersten Datenbalken.
+          while (binCounts.length > 1 && binCounts[binCounts.length - 1] === 0) { binCounts.pop(); binLabels.pop(); }
+          while (binCounts.length > 1 && binCounts[0] === 0) { binCounts.shift(); binLabels.shift(); }
+          makeBarChart('cChargePower', '{{ t.analysis_unit_sessions }}', binLabels, binCounts, TC.accent, '{{ t.analysis_count }}', { noFilter: true });
+        }
+
+        // 14.10: Backend liefert neutrale Keys {home, external} / {ac, dc};
+        // im Frontend auf übersetzte/universelle Labels mappen.
+        const HOME_EXT_LABELS = { home: '{{ t.analysis_home }}', external: '{{ t.analysis_ext }}' };
+        const AC_DC_LABELS = { ac: 'AC', dc: 'DC' };
+        const homeExtKeys   = Object.keys(d.home_vs_ext);
+        const homeExtLabels = homeExtKeys.map(k => HOME_EXT_LABELS[k] || k);
+        const homeExtData   = homeExtKeys.map(k => d.home_vs_ext[k]);
+        makePieChart('cChargeHomeExt', homeExtLabels, homeExtData, [TC.accent, TC.warn], '{{ t.analysis_unit_sessions }}');
+
+        const acDcKeys   = Object.keys(d.ac_dc);
+        const acDcLabels = acDcKeys.map(k => AC_DC_LABELS[k] || k);
+        const acDcData   = acDcKeys.map(k => d.ac_dc[k]);
+        // 14.12: AC/DC auf Blau/Orange (Farbenblind-sicher) statt Grün/Rot.
+        makePieChart('cChargeAcDc', acDcLabels, acDcData, [TC.accent, TC.warn], '{{ t.analysis_unit_sessions }}');
+
+        if (!noOp) {
+          const opLabels = Object.keys(d.operators);
+          const opData   = Object.values(d.operators);
+          const opColors = [TC.accent,TC.warn,TC.success,TC.purple,TC.danger,TC.accentBright,TC.orange,TC.text2];
+          // Filter checkboxes
+          const filtersEl = document.getElementById('opFilters');
+          opLabels.forEach((name, i) => {
+            const color = opColors[i % opColors.length];
+            const id = `opCb${i}`;
+            filtersEl.innerHTML += `<label style="display:flex;align-items:center;gap:0.2rem;cursor:pointer;color:var(--text-1)"><input type="checkbox" id="${id}" checked data-onchange="updateOpChart" style="accent-color:${color}">${name} <span style="color:var(--text-2)">(${opData[i]})</span></label>`;
+          });
+          window._opAllLabels = opLabels;
+          window._opAllData = opData;
+          window._opColors = opColors;
+          updateOpChart();
+        }
+      } catch(e) {
+        el.innerHTML = '<div class="no-data">{{ t.analysis_charge_error }}</div>';
+      }
+    }
+
+    function updateOpChart() {
+      const labels = [], data = [], colors = [];
+      window._opAllLabels.forEach((name, i) => {
+        if (document.getElementById(`opCb${i}`).checked) {
+          labels.push(name);
+          data.push(window._opAllData[i]);
+          colors.push(window._opColors[i % window._opColors.length]);
+        }
+      });
+      if (chartInstances['cChargeOp']) chartInstances['cChargeOp'].destroy();
+      if (!labels.length) return;
+      const ctx = document.getElementById('cChargeOp').getContext('2d');
+      const yScale = { title: { display: true, text: '{{ t.analysis_count }}', color: TC.text2, font: { size: 10 } }, ticks: { color: TC.text2, font: { size: 10 } }, grid: { color: TC.borderSoft } };
+      // Count chart: no outlier filter
+      chartInstances['cChargeOp'] = new Chart(ctx, {
+        type: 'bar',
+        data: { labels, datasets: [{ label: '{{ t.analysis_unit_sessions }}', data, backgroundColor: colors.map(c => c + '88'), borderColor: colors, borderWidth: 1 }] },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { x: { ticks: { color: TC.text2, font: { size: 10 }, maxTicksLimit: 20 }, grid: { color: TC.borderSoft } }, y: yScale }
+        }
+      });
+    }
+
+    function renderTripsTab(trips) {
+      const el = document.getElementById('chartsTrips');
+      const sumEl = document.getElementById('tripsSummary');
+      if (!trips.length) {
+        sumEl.innerHTML = '';
+        el.innerHTML = '<div class="no-data">{{ t.analysis_no_trips }}</div>';
+        return;
+      }
+
+      // B1: Summary cards
+      const totalKm = trips.reduce((s, t) => s + (t.km || 0), 0);
+      const totalKwh = trips.reduce((s, t) => s + (t.kwh || 0), 0);
+      // Ø Schätzung: km-weighted (Σ kWh / Σ km) over trips with km>0 && kwh>0
+      // — shared kmWeightedAvg() helper, identical predicate as the Efficiency
+      // card / estRange / monthly bars (13.3).
+      const avgCons = kmWeightedAvg(trips);
+      // Ø-Dauer: identischer Plausibilitaets-Filter wie Dauer-Chart/Scatter (13.8)
+      const durTrips = trips.filter(passesDurationFilter);
+      const avgDur = durTrips.length ? durTrips.reduce((s, t) => s + t.duration_min, 0) / durTrips.length : 0;
+      // 14.7: sichtbarer Kurztext (vorher nur im title-Attribut versteckt).
+      const realCard = (_cachedReal && _cachedReal.cons_batt != null)
+        ? `<div class="stat-card" title="{{ t.charges_real_title }} — {{ t.charges_real_batt }} / {{ t.charges_real_grid }}"><div class="val">${fmtNum(_cachedReal.cons_batt, 1)} <span style="font-size:0.6em;color:var(--text-2)">/ ${fmtNum(_cachedReal.cons_grid, 1)}</span></div><div class="lbl">Ø real kWh/100km</div><div class="lbl" style="font-size:0.65rem;font-style:italic">{{ t.analysis_real_cons_hint }}</div></div>`
+        : '';
+      // Ø km/Trip nur ueber Trips MIT echter km-Distanz, sonst zieht jeder
+      // NULL/0-km-Trip den Schnitt nach unten ohne im Zaehler zu landen.
+      const _distTrips = trips.filter(t => t.km != null && t.km > 0);
+      const _avgKmPerTrip = _distTrips.length ? totalKm / _distTrips.length : 0;
+      sumEl.innerHTML = `
+        <div class="stat-card"><div class="val">${trips.length}</div><div class="lbl">{{ t.analysis_trips }}</div></div>
+        <div class="stat-card"><div class="val">${fmtNum(totalKm)}</div><div class="lbl">km {{ t.common_total }}</div></div>
+        <div class="stat-card"><div class="val">${fmtNum(_avgKmPerTrip, 1)}</div><div class="lbl">{{ t.analysis_avg_km_trip }}</div></div>
+        <div class="stat-card"><div class="val">${avgCons ? fmtNum(avgCons, 1) : '–'}</div><div class="lbl">Ø {{ t.analysis_estimate }} kWh/100km</div><div class="lbl" style="font-size:0.65rem;font-style:italic">{{ t.analysis_est_cons_hint }}</div></div>
+        ${realCard}
+        <div class="stat-card"><div class="val">${fmtNum(totalKwh, 1)}</div><div class="lbl">kWh {{ t.common_total }}</div></div>
+        <div class="stat-card"><div class="val">${avgDur ? Math.round(avgDur) : '–'}</div><div class="lbl">Ø {{ t.common_duration }} (min)</div></div>
+      `;
+
+      el.innerHTML = `
+        <div class="chart-card"><h3>{{ t.analysis_dist_per_trip }}</h3><canvas id="cDist"></canvas></div>
+        <div class="chart-card"><h3>{{ t.analysis_consumption_100km }}</h3><canvas id="cCons"></canvas></div>
+        <div class="chart-card"><h3>{{ t.analysis_km_per_month }}</h3><canvas id="cKmMonth"></canvas></div>
+        <div class="chart-card"><h3>{{ t.analysis_trip_duration }}</h3><canvas id="cDuration"></canvas></div>
+        <div class="chart-card"><h3>{{ t.analysis_duration_vs_dist }}</h3><canvas id="cDurVsDist"></canvas></div>
+        <div class="chart-card"><h3>{{ t.analysis_trips_weekday_hour }}</h3><div id="heatTrips"></div></div>
+        <div class="chart-card"><h3>{{ t.analysis_km_weekday_hour }}</h3><div id="heatKm"></div></div>
+        <div class="chart-card"><h3>{{ t.analysis_odometer }}</h3><canvas id="cOdo"></canvas></div>
+      `;
+
+      const dates = trips.map(t => t.date);
+
+      // Odometer: last odo value per calendar day, gaps linearly interpolated
+      const odoByDay = {};
+      trips.forEach(t => { if (t.odo != null) odoByDay[t.date.slice(0, 10)] = t.odo; });
+      const odoDays = Object.keys(odoByDay).sort();
+      let odoTimeline = [], odoLabels = [];
+      if (odoDays.length >= 2) {
+        const d0 = new Date(odoDays[0]), d1 = new Date(odoDays[odoDays.length - 1]);
+        for (let d = new Date(d0); d <= d1; d.setDate(d.getDate() + 1)) {
+          const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+          odoLabels.push(key);
+          odoTimeline.push(odoByDay[key] ?? null);
+        }
+      } else {
+        odoLabels = odoDays; odoTimeline = odoDays.map(d => odoByDay[d]);
+      }
+      makeChart('cOdo', 'km', odoLabels, odoTimeline, TC.accent, 'km', { beginAtZero: false, noFilter: true });
+      const cDistData = trips.map(t => t.km);
+      const cDistMax = Math.max(0, ...cDistData.filter(v => v != null && isFinite(v)));
+      // Kein Perzentil-Clipping (sonst Deckel bei ~95-Perzentil, Langstrecken
+      // abgeschnitten); Log-Achse erst oberhalb 150 km für die Spreizung.
+      // 14.12: km = Blau (var(--accent)).
+      makeBarChart('cDist', 'km', dates, cDistData, TC.accent, 'km', { noFilter: true, logScale: cDistMax > 150 });
+      // Verbrauch: ALLE Punkte anzeigen (consDisplay), Trend aber nur über
+      // Hampel-gefilterte Werte (Spikes nach oben raus) — Ausreißer bleiben
+      // sichtbar, beeinflussen den Trend aber nicht. Achse robust aus den
+      // gefilterten Werten.
+      const consRaw = trips.map(t => t.consumption);
+      const consDisplay = consRaw.map(v => (v != null && v > 0) ? v : null);
+      const consForTrend = hampelFilter(consDisplay, 3, 3, 'upper');
+      const consTrend = movingAverage(consForTrend, Math.max(5, Math.round(consForTrend.length / 8)));
+      makeSmoothedChart('cCons', 'kWh/100km', dates, consDisplay, consTrend, TC.warn, 'kWh/100km', { boundsData: consForTrend, footnote: '{{ t.analysis_trend_robust }}' });
+
+      // B2: km per month — Leermonate durchgeneriert (13.9), fehlend = null
+      const kmByMonth = {};
+      trips.forEach(t => {
+        if (!t.date) return;
+        const m = t.date.slice(0, 7);
+        kmByMonth[m] = (kmByMonth[m] || 0) + (t.km || 0);
+      });
+      const monthLabels = monthRange(Object.keys(kmByMonth));
+      makeBarChart('cKmMonth', 'km', monthLabels, monthLabels.map(m => m in kmByMonth ? Math.round(kmByMonth[m]) : null), TC.accent, 'km', { noFilter: true });
+
+      // B3: Trip duration — identischer Plausibilitaets-Filter wie Card/Scatter
+      // (13.8, passesDurationFilter). Index-Konsistenz: gefilterte Eintraege
+      // werden zu null (kein Balken), dates bleibt deckungsgleich mit cDurData.
+      const cDurData = trips.map(t => passesDurationFilter(t) ? t.duration_min : null);
+      // Index-Konsistenz: gefilterte Eintraege werden zu null (kein Balken),
+      // dates bleibt dadurch deckungsgleich mit cDurData.
+      const cDurMax = Math.max(0, ...cDurData.filter(v => v != null && Number.isFinite(v)));
+      // Wie cDist: kein Perzentil-Clipping (sonst Langfahrten gedeckelt),
+      // Log-Achse erst oberhalb 150 min fuer die Spreizung kurzer Fahrten.
+      makeBarChart('cDuration', 'min', dates, cDurData, TC.purple, 'min', { noFilter: true, logScale: cDurMax > 150 });
+
+      // B3: Dauer vs. Strecke Scatter — identischer Plausibilitaets-Filter wie
+      // Card/Dauer-Chart (13.8, passesDurationFilter; v-Obergrenze vereinheitlicht).
+      const durDistData = trips
+        .filter(passesDurationFilter)
+        .map(t => ({ x: t.km, y: t.duration_min }));
+      if (durDistData.length) {
+        makeScatterChart('cDurVsDist', 'km', 'min', durDistData, TC.success);
+      } else {
+        const ddP = document.getElementById('cDurVsDist').parentElement; ddP.classList.add('no-chart-data'); ddP.querySelector('h3').insertAdjacentHTML('afterend', '<div class="no-data">{{ t.common_no_data }}</div>');
+      }
+
+      // Heatmaps: 7 days x 24 hours — Wochentags-Kürzel aus Lang-Key (14.10).
+      const wdLabels = '{{ t.analysis_weekdays_short }}'.split(',');
+      const countGrid = Array.from({length: 7}, () => new Array(24).fill(0));
+      const kmGrid = Array.from({length: 7}, () => new Array(24).fill(0));
+      let _skippedNoTime = 0;
+      trips.forEach(t => {
+        // Trips ohne Zeit aus der Heatmap rauslassen — sonst landen sie
+        // alle in der 0-Uhr-Spalte ihres Wochentags und erzeugen eine
+        // kuenstliche Mitternachts-Spitze (Wochentag wurde aus 12:00-Default
+        // berechnet, Stunde aber auf 0 gesetzt — inkonsistente Achsen).
+        if (!t.time) { _skippedNoTime++; return; }
+        const d = new Date(t.date + 'T' + t.time);
+        const wd = (d.getDay() + 6) % 7;
+        const h = parseInt(t.time.split(':')[0], 10);
+        countGrid[wd][h]++;
+        kmGrid[wd][h] += t.km != null && t.km > 0 ? t.km : 0;
+      });
+      renderHeatmap('heatTrips', wdLabels, countGrid, TC.accent, '');
+      // 14.12: km-Heatmap auf Blau (km-Konvention) statt Grün.
+      renderHeatmap('heatKm', wdLabels, kmGrid, TC.accent, ' km');
+      // 14.13: Fussnote, wenn Fahrten ohne Uhrzeit nicht in der Heatmap landen.
+      if (_skippedNoTime > 0) {
+        const htCard = document.getElementById('heatTrips').parentElement;
+        if (htCard && !htCard.querySelector('.chart-footnote')) {
+          htCard.insertAdjacentHTML('beforeend',
+            `<div class="chart-footnote">${'{{ t.analysis_heatmap_skipped }}'.replace('{0}', _skippedNoTime)}</div>`);
+        }
+      }
+    }
+
+    function renderPurposeTab(trips) {
+      const sumEl = document.getElementById('purposeSummary');
+      const chartEl = document.getElementById('chartsPurpose');
+
+      if (!trips.length) {
+        sumEl.innerHTML = '';
+        chartEl.innerHTML = '<div class="no-data">{{ t.analysis_no_trips }}</div>';
+        return;
+      }
+
+      // Aggregate km by purpose
+      const byPurpose = {};
+      let totalKm = 0;
+      let totalTrips = 0;
+      trips.forEach(t => {
+        const p = t.purpose || '{{ t.trips_uncategorized }}';
+        if (!byPurpose[p]) byPurpose[p] = { km: 0, count: 0 };
+        byPurpose[p].km += t.km || 0;
+        byPurpose[p].count++;
+        totalKm += t.km || 0;
+        totalTrips++;
+      });
+
+      // Summary cards
+      sumEl.innerHTML = `
+        <div class="stat-card"><div class="val">${totalTrips}</div><div class="lbl">{{ t.analysis_trips }}</div></div>
+        <div class="stat-card"><div class="val">${totalKm.toFixed(0)}</div><div class="lbl">km {{ t.common_total }}</div></div>
+        ${Object.entries(byPurpose).map(([p, d]) =>
+          `<div class="stat-card"><div class="val" style="color:${purposeColors[p] || TC.text2}">${d.km.toFixed(0)} km</div><div class="lbl">${p} (${d.count}x)</div></div>`
+        ).join('')}
+      `;
+
+      // Pie chart: km by purpose
+      const labels = Object.keys(byPurpose);
+      const data = labels.map(p => Math.round(byPurpose[p].km * 10) / 10);
+      const defaultColors = [TC.accent, TC.success, TC.warn, TC.purple, TC.danger, TC.text2, TC.accentBright, TC.successBright];
+      const colors = labels.map((p, i) => purposeColors[p] || defaultColors[i % defaultColors.length]);
+
+      chartEl.innerHTML = `
+        <div class="chart-card"><h3>{{ t.analysis_km_by_purpose }}</h3><canvas id="cPurposeKm"></canvas></div>
+        <div class="chart-card"><h3>{{ t.analysis_trips_by_purpose }}</h3><canvas id="cPurposeCount"></canvas></div>
+        <div class="chart-card wide" id="yearlyEstCard"><h3>{{ t.analysis_yearly_estimate }}</h3><div id="yearlyEstBody" style="font-size:0.8rem;color:var(--text-2);padding:0.4rem 0">{{ t.common_loading }}…</div></div>
+      `;
+
+      makePieChart('cPurposeKm', labels, data, colors, 'km');
+      // Trip-count pie: no unit (counts trips) — label + percentage only.
+      makePieChart('cPurposeCount', labels, labels.map(p => byPurpose[p].count), colors);
+
+      // Yearly extrapolation — independent of the page's date filter.
+      // Defensive: never let a failure here propagate and break the tab.
+      try { loadYearlyEstimate(); } catch (e) { console.error('loadYearlyEstimate sync err', e); }
+    }
+
+    async function loadYearlyEstimate() {
+      const el = document.getElementById('yearlyEstBody');
+      if (!el) return;
+      try {
+        const res = await fetch('/api/analysis/yearly-purposes');
+        const d = await res.json();
+        if (!d.purposes || !d.purposes.length) {
+          el.innerHTML = '<div class="no-data">{{ t.analysis_yearly_no_data }}</div>';
+          return;
+        }
+        const total = d.purposes.reduce((a, b) => a + b.estimated_year_km, 0);
+        const totalYtd = d.purposes.reduce((a, b) => a + b.km, 0);
+        const rows = d.purposes.map(p => {
+          const color = purposeColors[p.purpose] || TC.text2;
+          const pct = total > 0 ? (p.estimated_year_km / total * 100) : 0;
+          return `
+            <tr>
+              <td style="padding:0.3rem 0.5rem"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${color};vertical-align:middle;margin-right:0.4rem"></span>${esc(p.purpose)}</td>
+              <td style="padding:0.3rem 0.5rem;text-align:right;color:var(--text-2);font-variant-numeric:tabular-nums">${fmtKm(p.km)}</td>
+              <td style="padding:0.3rem 0.5rem;text-align:right;color:var(--text-1);font-weight:600;font-variant-numeric:tabular-nums">${fmtKm(p.estimated_year_km)}</td>
+              <td style="padding:0.3rem 0.5rem;text-align:right;color:var(--text-2);font-variant-numeric:tabular-nums">${pct.toFixed(0)} %</td>
+            </tr>
+          `;
+        }).join('');
+        const totalRow = `
+          <tr style="border-top:1px solid var(--border);font-weight:600">
+            <td style="padding:0.3rem 0.5rem;color:var(--text-1)">{{ t.common_sum }}</td>
+            <td style="padding:0.3rem 0.5rem;text-align:right;color:var(--text-2);font-variant-numeric:tabular-nums">${fmtKm(totalYtd)}</td>
+            <td style="padding:0.3rem 0.5rem;text-align:right;color:var(--accent);font-variant-numeric:tabular-nums">${fmtKm(total)}</td>
+            <td></td>
+          </tr>
+        `;
+        el.innerHTML = `
+          <table style="width:100%;border-collapse:collapse;font-size:0.85rem">
+            <thead><tr style="color:var(--text-2);font-size:0.72rem;text-transform:uppercase;letter-spacing:0.04em">
+              <th style="text-align:left;padding:0.3rem 0.5rem;font-weight:500">{{ t.analysis_purpose }}</th>
+              <th style="text-align:right;padding:0.3rem 0.5rem;font-weight:500">{{ t.analysis_yearly_ytd }} (${d.year})</th>
+              <th style="text-align:right;padding:0.3rem 0.5rem;font-weight:500">{{ t.analysis_yearly_estimate_col }}</th>
+              <th style="text-align:right;padding:0.3rem 0.5rem;font-weight:500">%</th>
+            </tr></thead>
+            <tbody>${rows}${totalRow}</tbody>
+          </table>
+          <div style="margin-top:0.6rem;font-size:0.7rem;color:var(--text-2);font-style:italic">
+            {{ t.analysis_yearly_hint|replace('{0}', '${d.days_elapsed}')|replace('{1}', '${d.days_available}')|replace('{2}', "${d.first_trip_date || '–'}")|replace('{3}', '${d.factor.toFixed(2)}')|safe }}
+          </div>
+        `;
+      } catch (e) {
+        console.error('yearly-purposes', e);
+        el.innerHTML = '<div class="no-data">{{ t.common_no_data }}</div>';
+      }
+    }
+
+    // 14.13: zentrale Zahlenformatierung mit der aktiven Sprache (Pattern aus
+    // trips.html) — ersetzt gemischtes toFixed/de-DE in den Stat-Cards.
+    const _LOCALE = '{{ current_lang|lower }}';
+    function fmtNum(v, digits) {
+      if (v == null || !isFinite(v)) return '–';
+      const d = digits == null ? 0 : digits;
+      return Number(v).toLocaleString(_LOCALE, { minimumFractionDigits: d, maximumFractionDigits: d });
+    }
+    function fmtKm(v) {
+      return Math.round(v).toLocaleString(_LOCALE) + ' km';
+    }
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function movingAverage(data, window) {
+      return data.map((v, i) => {
+        const start = Math.max(0, i - Math.floor(window / 2));
+        const end = Math.min(data.length, i + Math.ceil(window / 2));
+        const slice = data.slice(start, end).filter(x => x != null);
+        return slice.length ? Math.round(slice.reduce((a, b) => a + b, 0) / slice.length * 100) / 100 : null;
+      });
+    }
+
+    async function renderBatteryTab(trips) {
+      const el = document.getElementById('chartsBattery');
+
+      el.innerHTML = `
+        <div class="chart-card"><h3>{{ t.analysis_soc_timeline }}</h3><canvas id="cBatSoc"></canvas></div>
+        <div class="chart-card"><h3>{{ t.analysis_energy_per_trip }}</h3><canvas id="cBatEnergy"></canvas></div>
+        <div class="chart-card"><h3>{{ t.analysis_max_range }}</h3><canvas id="cMaxRange"></canvas></div>
+        <div class="chart-card"><h3>{{ t.analysis_soh }}</h3><div class="chart-subtitle">{{ t.analysis_soh_sub }}</div><div id="sohKpi" style="font-size:0.8rem;color:var(--text-2);margin-bottom:0.5rem"></div><canvas id="cSoH"></canvas></div>
+        <div class="chart-card"><h3>{{ t.analysis_soh_charges }}</h3><div class="chart-subtitle">{{ t.analysis_soh_charges_sub }}</div><div id="sohChargeKpi" style="font-size:0.8rem;color:var(--text-2);margin-bottom:0.5rem"></div><canvas id="cSoHCharge"></canvas></div>
+      `;
+
+      if (trips.length) {
+        const socLabels = [];
+        const socData = [];
+        // Defensiv chronologisch sortieren — die SoC-Stepped-Linie wird sonst
+        // bei unsortierten API-Daten zerwuerfelt (Reihenfolge haengt heute
+        // ausschliesslich von der Server-Sortierung ab).
+        const _sortedTrips = [...trips].sort((a, b) =>
+          (a.date + (a.time || '00:00')).localeCompare(b.date + (b.time || '00:00')));
+        _sortedTrips.forEach(t => {
+          const ts = t.date + ' ' + (t.time || '00:00');
+          if (t.soc_start != null) { socLabels.push(ts); socData.push(t.soc_start); }
+          if (t.soc_end != null)   { socLabels.push(ts + '+'); socData.push(t.soc_end); }
+        });
+        // Stepped line for SoC: clearly shows charge and drive phases
+        if (chartInstances['cBatSoc']) chartInstances['cBatSoc'].destroy();
+        const ctxSoc = document.getElementById('cBatSoc').getContext('2d');
+        chartInstances['cBatSoc'] = new Chart(ctxSoc, {
+          type: 'line',
+          data: { labels: socLabels, datasets: [{ label: 'SoC %', data: socData, borderColor: TC.purple, backgroundColor: TC.purple+'22', borderWidth: 1.5, pointRadius: 0, fill: true, stepped: 'before', spanGaps: true }] },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              // 14.13: Tooltip-Titel lesbar machen — das "+"-Suffix markiert das
+              // Fahrtende; Roh-Label "...14:23+" wird sonst direkt angezeigt.
+              tooltip: { callbacks: { title: function(items) {
+                const lbl = items[0]?.label || '';
+                if (lbl.endsWith('+')) return lbl.slice(0, -1) + ' · {{ t.analysis_trip_end }}';
+                return lbl + ' · {{ t.analysis_trip_start }}';
+              } } }
+            },
+            scales: {
+              x: { ticks: { color: TC.text2, font: { size: 10 }, maxTicksLimit: 8, callback: axisDateTick }, grid: { color: TC.borderSoft } },
+              y: { title: { display: true, text: '%', color: TC.text2, font: { size: 10 } }, ticks: { color: TC.text2, font: { size: 10 } }, grid: { color: TC.borderSoft }, min: 0, max: 100 }
+            }
+          }
+        });
+        const dates = trips.map(t => t.date);
+        // noFilter: Balken sollen bei 0 starten, kein Perzentil-Clipping (14.2)
+        makeBarChart('cBatEnergy', 'kWh', dates, trips.map(t => t.kwh), TC.warn, 'kWh', { noFilter: true });
+      } else {
+        document.getElementById('cBatSoc').parentElement.innerHTML = '<h3 style="color:var(--text-2);font-size:0.8rem">{{ t.analysis_soc_timeline }}</h3><div class="no-data">{{ t.analysis_no_trips_short }}</div>';
+        document.getElementById('cBatEnergy').parentElement.innerHTML = '<h3 style="color:var(--text-2);font-size:0.8rem">{{ t.analysis_energy_per_trip }}</h3><div class="no-data">{{ t.analysis_no_trips_short }}</div>';
+      }
+
+      // InfluxDB-based battery charts
+      const from = document.getElementById('dateFrom').value;
+      const to = document.getElementById('dateTo').value;
+      const qs = from && to ? `?from=${from}&to=${to}` : '';
+      try {
+        const res = await fetch(`/api/battery-history${qs}`);
+        const bh = await res.json();
+
+        // Max range at 100% SoC
+        if (bh.range && bh.range.length) {
+          // Alle Reichweiten-Punkte anzeigen (rangeDisplay), Trend nur über
+          // Hampel-gefilterte Werte — hier BEIDSEITIG (Reichweite ist symmetrisch,
+          // Ausreißer nach oben wie unten). Achse robust aus den gefilterten.
+          const rawRange = bh.range.map(d => d.value);
+          const rangeDisplay = rawRange.map(v => (v != null && v > 0) ? v : null);
+          const rangeForTrend = hampelFilter(rangeDisplay, 3, 3, null);
+          const rangeSmoothed = movingAverage(rangeForTrend, 7);
+          makeSmoothedChart('cMaxRange', 'km', bh.range.map(d => d.date), rangeDisplay, rangeSmoothed, TC.accent, 'km', { boundsData: rangeForTrend, footnote: '{{ t.analysis_trend_robust }}' });
+        } else {
+          document.getElementById('cMaxRange').parentElement.innerHTML = '<h3 style="color:var(--text-2);font-size:0.8rem">{{ t.analysis_max_range }}</h3><div class="no-data">{{ t.analysis_no_range_data }}</div>';
+        }
+
+        // State of Health + degradation trend (B8)
+        if (bh.capacity && bh.capacity.length) {
+          const nominal = bh.nominal_kwh || 86.5;
+          // rawSoH auf <= 105% clippen (13.12) — Sensor-Ausreisser ueber 100%
+          // verzerren sonst Trend und Achse; der Charge-Pfad clippt schon via
+          // Perzentil. > 105% = null (= Luecke), nicht hart auf 105 gestaucht.
+          const sohDates = bh.capacity.map(d => d.date);
+          const rawSoH = bh.capacity.map(d => {
+            const soh = Math.round(d.value / nominal * 1000) / 10;
+            return soh > 105 ? null : soh;
+          });
+          const smoothed = movingAverage(rawSoH, 14);
+
+          // Lineare Regression auf TAGE seit erstem Punkt, nicht auf Index.
+          // Index-basierte Slope misst "% pro Datenpunkt"; bei ungleichmaessig
+          // verteilten Punkten (Auto stand 2 Wochen, dann Daten-Cluster) ergibt
+          // das eine Jahres-Degradation proportional zur Datendichte, nicht
+          // zum tatsaechlichen Verlauf.
+          let trendLine = null;
+          let degradPerYear = null;
+          // Regression nur ueber gueltige (nicht-geclippte) Punkte (13.12-Clip
+          // kann jetzt null erzeugen) — sonst NaN-Slope.
+          const t0 = new Date(sohDates[0]).getTime();
+          const xDaysAll = sohDates.map(d => (new Date(d).getTime() - t0) / 86400000);
+          const validIdx = rawSoH.map((v, i) => v != null ? i : -1).filter(i => i >= 0);
+          if (validIdx.length >= 7) {
+            const xVals = validIdx.map(i => xDaysAll[i]);
+            const yVals = validIdx.map(i => rawSoH[i]);
+            const xMean = xVals.reduce((a, b) => a + b, 0) / xVals.length;
+            const yMean = yVals.reduce((a, b) => a + b, 0) / yVals.length;
+            let num = 0, den = 0;
+            for (let i = 0; i < xVals.length; i++) {
+              num += (xVals[i] - xMean) * (yVals[i] - yMean);
+              den += (xVals[i] - xMean) ** 2;
+            }
+            const slope = den ? num / den : 0; // % pro Tag
+            const intercept = yMean - slope * xMean;
+            trendLine = xDaysAll.map(x => Math.round((slope * x + intercept) * 10) / 10);
+            const daySpan = xVals[xVals.length - 1];
+            if (daySpan > 30) {
+              degradPerYear = Math.round(slope * 365 * 10) / 10;
+            }
+          }
+
+          // KPI (13.12): nur echte Degradation (negativ) rot; >= 0 ist kein
+          // "Verbesserung", sondern Messrauschen -> neutral "stabil".
+          // 14.6: "Kapazitätsverlust: 1,2 % pro Jahr" (Betrag), rot nur bei
+          // echtem Verlust (negative Steigung); >= 0 = stabil/Messrauschen.
+          const kpiEl = document.getElementById('sohKpi');
+          if (degradPerYear !== null) {
+            if (degradPerYear < 0) {
+              kpiEl.innerHTML = `{{ t.analysis_capacity_loss }} <strong style="color:var(--danger)">${fmtNum(Math.abs(degradPerYear), 1)} {{ t.analysis_capacity_loss_unit }}</strong>`;
+            } else {
+              kpiEl.innerHTML = `{{ t.analysis_capacity_loss }} <strong style="color:var(--text-2)">{{ t.analysis_soh_stable }}</strong>`;
+            }
+          }
+
+          // Chart with trend dataset
+          if (chartInstances['cSoH']) chartInstances['cSoH'].destroy();
+          const ctxSoH = document.getElementById('cSoH').getContext('2d');
+          // 14.12: SoH = Violett (var(--purple)); Trend neutral grau gestrichelt.
+          const datasets = [
+            { label: 'SoH % ({{ t.analysis_smoothed }})', data: smoothed, borderColor: TC.purple, backgroundColor: TC.purple+'22', borderWidth: 2.5, pointRadius: 0, fill: true, tension: 0.4, spanGaps: true },
+            { label: 'SoH % ({{ t.analysis_raw }})', data: rawSoH, borderColor: TC.purple+'44', backgroundColor: 'transparent', borderWidth: 0, pointRadius: 2, pointBackgroundColor: TC.purple+'66', fill: false, spanGaps: true },
+          ];
+          if (trendLine) {
+            datasets.push({ label: 'Trend', data: trendLine, borderColor: TC.text2, backgroundColor: 'transparent', borderWidth: 1.5, borderDash: [6, 3], pointRadius: 0, fill: false, spanGaps: true });
+          }
+          chartInstances['cSoH'] = new Chart(ctxSoH, {
+            type: 'line',
+            data: { labels: sohDates, datasets },
+            options: {
+              responsive: true, maintainAspectRatio: false,
+              plugins: { legend: { display: true, labels: { color: TC.text2, font: { size: 10 } } } },
+              scales: {
+                x: { ticks: { color: TC.text2, font: { size: 10 }, maxTicksLimit: 8, callback: axisDateTick }, grid: { color: TC.borderSoft } },
+                y: { title: { display: true, text: '%', color: TC.text2, font: { size: 10 } }, ticks: { color: TC.text2, font: { size: 10 } }, grid: { color: TC.borderSoft } }
+              }
+            }
+          });
+        } else {
+          document.getElementById('cSoH').parentElement.innerHTML = '<h3 style="color:var(--text-2);font-size:0.8rem">{{ t.analysis_soh }}</h3><div class="no-data">{{ t.common_no_data }}</div>';
+        }
+
+        // SoH derived from charge sessions (kWh meter / SoC-delta)
+        const cc = bh.capacity_from_charges || [];
+        if (cc.length >= 3) {
+          const nominalC = bh.nominal_kwh || 86.5;
+          // 10% percentile clip on raw capacity to drop bad SoC-end readings
+          const vals = cc.map(d => d.value);
+          const lo = percentile(vals, 0.10);
+          const hi = percentile(vals, 0.90);
+          const ccDates = cc.map(d => d.date);
+          const rawSoHc = cc.map(d => (d.value >= lo && d.value <= hi)
+            ? Math.round(d.value / nominalC * 1000) / 10 : null);
+          // 5-charge moving average (charge data is sparser than daily Influx)
+          const smoothedC = movingAverage(rawSoHc, 5);
+
+          // Regression auf TAGE seit dem ersten gueltigen Punkt (siehe Begruendung
+          // im Influx-SoH-Block weiter oben — Index-basierte Slope ist datendichte-abhaengig).
+          const n = rawSoHc.length;
+          let trendC = null, degradC = null;
+          const validIdx = rawSoHc.map((v, i) => v != null ? i : -1).filter(i => i >= 0);
+          if (validIdx.length >= 5) {
+            const tc0 = new Date(ccDates[validIdx[0]]).getTime();
+            const xDaysAll = ccDates.map(d => (new Date(d).getTime() - tc0) / 86400000);
+            const xVals = validIdx.map(i => xDaysAll[i]);
+            const yVals = validIdx.map(i => rawSoHc[i]);
+            const xMean = xVals.reduce((a, b) => a + b, 0) / xVals.length;
+            const yMean = yVals.reduce((a, b) => a + b, 0) / yVals.length;
+            let num = 0, den = 0;
+            for (let i = 0; i < xVals.length; i++) {
+              num += (xVals[i] - xMean) * (yVals[i] - yMean);
+              den += (xVals[i] - xMean) ** 2;
+            }
+            const slope = den ? num / den : 0; // % pro Tag
+            const intercept = yMean - slope * xMean;
+            trendC = xDaysAll.map(x => Math.round((slope * x + intercept) * 10) / 10);
+            const daySpan = xVals[xVals.length - 1];
+            if (daySpan > 60) {
+              degradC = Math.round(slope * 365 * 10) / 10;
+            }
+          }
+
+          // 14.6: Kapazitätsverlust (Betrag) + "basierend auf {0} Ladungen"
+          // statt "n=12". Rot nur bei echtem Verlust.
+          const basedOn = '{{ t.analysis_soh_based_on }}'.replace('{0}', validIdx.length);
+          const kpiC = document.getElementById('sohChargeKpi');
+          if (degradC !== null && degradC < 0) {
+            kpiC.innerHTML = `{{ t.analysis_capacity_loss }} <strong style="color:var(--danger)">${fmtNum(Math.abs(degradC), 1)} {{ t.analysis_capacity_loss_unit }}</strong> <span style="color:var(--text-2)">· ${basedOn}</span>`;
+          } else if (degradC !== null) {
+            // degradC >= 0: kein "Verbesserung" -> neutral "stabil" (13.12)
+            kpiC.innerHTML = `{{ t.analysis_capacity_loss }} <strong style="color:var(--text-2)">{{ t.analysis_soh_stable }}</strong> <span style="color:var(--text-2)">· ${basedOn}</span>`;
+          } else {
+            kpiC.innerHTML = `<span style="color:var(--text-2)">{{ t.analysis_soh_charges_hint }} · ${basedOn}</span>`;
+          }
+
+          if (chartInstances['cSoHCharge']) chartInstances['cSoHCharge'].destroy();
+          const ctxC = document.getElementById('cSoHCharge').getContext('2d');
+          // 14.12: Trend neutral grau gestrichelt (Gegenprobe-Serie bleibt grün
+          // zur klaren Abgrenzung vom violetten Influx-SoH-Chart).
+          const dsC = [
+            { label: 'SoH % ({{ t.analysis_smoothed }})', data: smoothedC, borderColor: TC.success, backgroundColor: TC.success+'22', borderWidth: 2.5, pointRadius: 0, fill: true, tension: 0.4, spanGaps: true },
+            { label: 'SoH % ({{ t.analysis_raw }})', data: rawSoHc, borderColor: TC.success+'44', backgroundColor: 'transparent', borderWidth: 0, pointRadius: 3, pointBackgroundColor: TC.success+'88', fill: false, spanGaps: true },
+          ];
+          if (trendC) {
+            dsC.push({ label: 'Trend', data: trendC, borderColor: TC.text2, backgroundColor: 'transparent', borderWidth: 1.5, borderDash: [6, 3], pointRadius: 0, fill: false, spanGaps: true });
+          }
+          chartInstances['cSoHCharge'] = new Chart(ctxC, {
+            type: 'line',
+            data: { labels: ccDates, datasets: dsC },
+            options: {
+              responsive: true, maintainAspectRatio: false,
+              plugins: { legend: { display: true, labels: { color: TC.text2, font: { size: 10 } } } },
+              scales: {
+                x: { ticks: { color: TC.text2, font: { size: 10 }, maxTicksLimit: 8, callback: axisDateTick }, grid: { color: TC.borderSoft } },
+                y: { title: { display: true, text: '%', color: TC.text2, font: { size: 10 } }, ticks: { color: TC.text2, font: { size: 10 } }, grid: { color: TC.borderSoft } }
+              }
+            }
+          });
+        } else {
+          document.getElementById('cSoHCharge').parentElement.innerHTML = '<h3 style="color:var(--text-2);font-size:0.8rem">{{ t.analysis_soh_charges }}</h3><div class="no-data">{{ t.analysis_soh_charges_no_data }}</div>';
+        }
+      } catch (e) {
+        console.error('battery-history error:', e);
+        // 14.8: Fehlertext im Panel statt nur console.error.
+        el.innerHTML = '<div class="no-data">{{ t.analysis_load_error }}<br><button data-onclick="retryBatterie" style="margin-top:0.6rem;padding:0.35rem 0.9rem;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text-1);font-size:0.8rem;cursor:pointer">{{ t.common_retry }}</button></div>';
+      }
+    }
+
+    function makeSmoothedChart(id, label, labels, rawData, smoothData, color, yLabel, extraOpts) {
+      if (chartInstances[id]) chartInstances[id].destroy();
+      const ctx = document.getElementById(id).getContext('2d');
+      // 14.5: optionale Outlier-Fussnote unter der Card.
+      if (extraOpts?.footnote) {
+        const card = ctx.canvas.parentElement;
+        if (card && !card.querySelector('.chart-footnote')) {
+          card.insertAdjacentHTML('beforeend', `<div class="chart-footnote">${extraOpts.footnote}</div>`);
+        }
+      }
+      const yScale = { title: { display: true, text: yLabel, color: TC.text2, font: { size: 10 } }, ticks: { color: TC.text2, font: { size: 10 } }, grid: { color: TC.borderSoft } };
+      // boundsData: Achsen-Grenzen aus den (Ausreißer-bereinigten) Trenddaten,
+      // damit der Hauptbereich lesbar bleibt, während rawData ALLE Punkte zeigt
+      // (Spikes clampen oben statt alles zu stauchen).
+      if (extraOpts?.boundsData) applyBounds(yScale, yBounds(extraOpts.boundsData));
+      else if (!extraOpts?.noFilter) applyBounds(yScale, yBounds(rawData));
+      chartInstances[id] = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            { label: label + ' ({{ t.analysis_smoothed }})', data: smoothData, borderColor: color, backgroundColor: color + '22', borderWidth: 2.5, pointRadius: 0, fill: true, tension: 0.4, spanGaps: true },
+            { label: label + ' ({{ t.analysis_raw }})', data: rawData, borderColor: color + '44', backgroundColor: 'transparent', borderWidth: 0, pointRadius: 2, pointBackgroundColor: color + '66', fill: false, spanGaps: true }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: true, labels: { color: TC.text2, font: { size: 10 } } } },
+          scales: {
+            x: { ticks: { color: TC.text2, font: { size: 10 }, maxTicksLimit: 8, callback: axisDateTick }, grid: { color: TC.borderSoft } },
+            y: yScale
+          }
+        }
+      });
+    }
+
+    function makeScatterChart(id, xLabel, yLabel, data, color) {
+      if (chartInstances[id]) chartInstances[id].destroy();
+      const ctx = document.getElementById(id).getContext('2d');
+      let filtered = data;
+      let clipped = false;
+      if (data.length >= 4) {
+        const xs = data.map(d => d.x), ys = data.map(d => d.y);
+        const xLo = percentile(xs, 0.05), xHi = percentile(xs, 0.95);
+        const yLo = percentile(ys, 0.05), yHi = percentile(ys, 0.95);
+        filtered = data.filter(d => d.x >= xLo && d.x <= xHi && d.y >= yLo && d.y <= yHi);
+        clipped = filtered.length < data.length;
+      }
+      // 14.5: still entfernte Outlier sichtbar machen.
+      if (clipped) {
+        const card = ctx.canvas.parentElement;
+        if (card && !card.querySelector('.chart-footnote')) {
+          card.insertAdjacentHTML('beforeend', '<div class="chart-footnote">{{ t.analysis_outliers_hidden }}</div>');
+        }
+      }
+      chartInstances[id] = new Chart(ctx, {
+        type: 'scatter',
+        data: { datasets: [{ data: filtered, backgroundColor: color + '88', borderColor: color, borderWidth: 1, pointRadius: 4, pointHoverRadius: 6 }] },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { title: { display: true, text: xLabel, color: TC.text2, font: { size: 10 } }, ticks: { color: TC.text2, font: { size: 10 } }, grid: { color: TC.borderSoft } },
+            y: { title: { display: true, text: yLabel, color: TC.text2, font: { size: 10 } }, ticks: { color: TC.text2, font: { size: 10 } }, grid: { color: TC.borderSoft } }
+          }
+        }
+      });
+    }
+
+    function makeStackedBarChart(id, labels, datasets, yLabel) {
+      if (chartInstances[id]) chartInstances[id].destroy();
+      const ctx = document.getElementById(id).getContext('2d');
+      chartInstances[id] = new Chart(ctx, {
+        type: 'bar',
+        data: { labels, datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: true, labels: { color: TC.text2, font: { size: 10 } } } },
+          scales: {
+            x: { stacked: true, ticks: { color: TC.text2, font: { size: 10 }, callback: axisDateTick }, grid: { color: TC.borderSoft } },
+            y: { stacked: true, title: { display: true, text: yLabel, color: TC.text2, font: { size: 10 } }, ticks: { color: TC.text2, font: { size: 10 } }, grid: { color: TC.borderSoft } }
+          }
+        }
+      });
+    }
+
+    async function renderEfficiencyTab(trips, qs) {
+      const el = document.getElementById('chartsEfficiency');
+      const effSum = document.getElementById('effSummary');
+      if (!trips.length) {
+        effSum.innerHTML = '';
+        el.innerHTML = '<div class="no-data">{{ t.analysis_no_trips }}</div>';
+        return;
+      }
+
+      // B5: Range KPI
+      // km-gewichteter Schnitt analog zum Trips-Tab (shared kmWeightedAvg, 13.3)
+      // — sonst dominiert eine 1-km-Stadtfahrt mit 25 kWh/100km die 300-km-
+      // Autobahn mit 18 kWh/100km gleichermassen.
+      const avgCons = kmWeightedAvg(trips);
+      const estRange = (avgCons && _cachedBatKwh) ? Math.round(_cachedBatKwh / avgCons * 100) : null;
+      effSum.innerHTML = avgCons ? `
+        <div class="stat-card"><div class="val">${fmtNum(avgCons, 1)}</div><div class="lbl">Ø kWh/100km</div></div>
+        <div class="stat-card"><div class="val">${estRange ? fmtNum(estRange) + ' km' : '–'}</div><div class="lbl">{{ t.analysis_avg_range }}</div></div>
+      ` : '';
+
+      el.innerHTML = `
+        <div class="chart-card"><h3>{{ t.analysis_avg_consumption_month }}</h3><canvas id="cConsMonth"></canvas></div>
+        <div class="chart-card"><h3>{{ t.analysis_consumption_vs_temp }}</h3><canvas id="cConsTemp"></canvas></div>
+        <div class="chart-card"><h3>{{ t.analysis_consumption_vs_speed }}</h3><canvas id="cConsSpeed"></canvas></div>
+        <div class="chart-card"><h3>{{ t.analysis_energy_cost_month }}</h3><canvas id="cEnergyCost"></canvas></div>
+        <div class="chart-card"><h3>{{ t.analysis_cost_per_100km }}</h3><canvas id="cCostPer100"></canvas></div>
+      `;
+
+      // B4: Avg consumption per month — km-gewichtet via shared kmWeightedAvg
+      // helper (13.3); identisches Praedikat (km>0 && kwh>0) wie Trips-/
+      // Effizienz-Card. Leermonate werden durchgeneriert (13.9): Monate ohne
+      // gueltige Verbrauchsdaten = null (= Luecke, kein 0-Balken).
+      const tripsByConsMonth = {};
+      trips.forEach(t => {
+        if (!t.date) return;
+        const m = t.date.slice(0, 7);
+        (tripsByConsMonth[m] = tripsByConsMonth[m] || []).push(t);
+      });
+      const consDataMonths = Object.keys(tripsByConsMonth).sort();
+      const consMonths = monthRange(consDataMonths);
+      const hasConsData = consDataMonths.some(m => kmWeightedAvg(tripsByConsMonth[m]) > 0);
+      if (consMonths.length && hasConsData) {
+        const avgPerMonth = consMonths.map(m => {
+          const avg = kmWeightedAvg(tripsByConsMonth[m] || []);
+          return avg > 0 ? Math.round(avg * 10) / 10 : null;
+        });
+        makeBarChart('cConsMonth', 'kWh/100km', consMonths, avgPerMonth, TC.warn, 'kWh/100km', { noFilter: true });
+      } else {
+        const cmP = document.getElementById('cConsMonth').parentElement; cmP.classList.add('no-chart-data'); cmP.querySelector('h3').insertAdjacentHTML('afterend', '<div class="no-data">{{ t.analysis_no_consumption_data }}</div>');
+      }
+
+      // ── Consumption outlier threshold for efficiency scatters ──
+      const effConsValid = trips.filter(t => t.consumption > 0).map(t => t.consumption);
+      const effConsHi = percentile(effConsValid, 0.95);
+
+      // ── Consumption vs. avg speed ──
+      const speedData = trips
+        .filter(t => t.consumption && t.consumption <= effConsHi && t.duration_min && t.duration_min > 0 && t.km)
+        .map(t => ({ x: Math.round(t.km / (t.duration_min / 60) * 10) / 10, y: t.consumption }))
+        .filter(d => d.x > 0 && d.x <= 200);
+      if (speedData.length) {
+        // Label "Brutto-Schnitt" weist darauf hin dass Standzeiten/Stau im
+        // km/h-Wert mit drin sind (km / duration_min — Auto-Bewegung nicht
+        // gefiltert). Stadt-Trips mit Stau wirken sonst wie Echt-Stadt-Geschw.
+        makeScatterChart('cConsSpeed', 'Ø km/h (brutto)', 'kWh/100km', speedData, TC.warn);
+      } else {
+        const csP = document.getElementById('cConsSpeed').parentElement; csP.classList.add('no-chart-data'); csP.querySelector('h3').insertAdjacentHTML('afterend', '<div class="no-data">{{ t.common_no_data }}</div>');
+      }
+
+      // ── Energy cost per month + consumption vs. temperature (needs InfluxDB data) ──
+      try {
+        const effRes = await fetch(`/api/efficiency-data${qs}`);
+        const eff = await effRes.json();
+
+        // Consumption vs. outside temperature
+        const tempMap = eff.temperatures || {};
+        const tempData = trips
+          .filter(t => t.consumption && t.consumption <= effConsHi && tempMap[t.date] !== undefined)
+          .map(t => ({ x: tempMap[t.date], y: t.consumption }));
+        if (tempData.length) {
+          makeScatterChart('cConsTemp', '°C', 'kWh/100km', tempData, TC.danger);
+        } else {
+          const ctP = document.getElementById('cConsTemp').parentElement; ctP.classList.add('no-chart-data'); ctP.querySelector('h3').insertAdjacentHTML('afterend', '<div class="no-data">{{ t.analysis_no_temp_data }}</div>');
+        }
+
+        // Energy cost per month — from calibrated charge_sessions data
+        try {
+          const csRes = await fetch(`/api/charge/stats${qs}`);
+          const cs = await csRes.json();
+          const monthlyCost = cs.monthly_cost || {};
+          // Cost per 100 km benoetigt km — vorab aggregieren damit beide Charts
+          // (Energy cost + Cost/100km) gemeinsame Monatsachse haben.
+          const kmByMonth = {};
+          trips.forEach(t => {
+            if (!(t.km != null && t.km > 0)) return;
+            const month = t.date.slice(0, 7);
+            kmByMonth[month] = (kmByMonth[month] || 0) + t.km;
+          });
+          // Achse = Vereinigung aller Monate mit Charges ODER Fahrten - damit
+          // Fahr-Monate ohne Ladung nicht aus dem Chart fallen, sondern als
+          // Luecke erscheinen (null statt 0).
+          const months = [...new Set([...Object.keys(monthlyCost), ...Object.keys(kmByMonth)])].sort();
+          if (months.length) {
+            makeStackedBarChart('cEnergyCost', months, [
+              {
+                label: '{{ t.analysis_cost_eur }}',
+                data: months.map(m => monthlyCost[m] != null ? Math.round(monthlyCost[m] * 100) / 100 : null),
+                backgroundColor: TC.success+'88',
+                borderColor: TC.success,
+                borderWidth: 1
+              },
+            ], 'EUR');
+          } else {
+            const ceP = document.getElementById('cEnergyCost').parentElement; ceP.classList.add('no-chart-data'); ceP.querySelector('h3').insertAdjacentHTML('afterend', '<div class="no-data">{{ t.analysis_no_charge_data }}</div>');
+          }
+
+          // Cost per 100 km: monthly charge cost / monthly km (kmByMonth wurde
+          // oben fuer die Energy-cost-Achse schon aggregiert).
+          // Monate ohne Charge bekommen null (= Luecke im Chart), nicht 0 €/100km
+          // - sonst suggeriert die Bar "kostenloses Fahren".
+          const cpMonths = months.filter(m => kmByMonth[m] && kmByMonth[m] > 0);
+          if (cpMonths.length) {
+            makeStackedBarChart('cCostPer100', cpMonths, [
+              {
+                // 14.12: Kosten = Grün (var(--success)).
+                label: 'EUR / 100 km',
+                data: cpMonths.map(m => monthlyCost[m] != null ? Math.round(monthlyCost[m] / kmByMonth[m] * 100 * 100) / 100 : null),
+                backgroundColor: TC.success+'88',
+                borderColor: TC.success,
+                borderWidth: 1
+              },
+            ], 'EUR / 100 km');
+          } else {
+            const cpP = document.getElementById('cCostPer100').parentElement; cpP.classList.add('no-chart-data'); cpP.querySelector('h3').insertAdjacentHTML('afterend', '<div class="no-data">{{ t.common_no_data }}</div>');
+          }
+        } catch (costErr) {
+          console.error('charge/stats cost error:', costErr);
+          // 14.8: Fehlertext in den betroffenen Cost-Cards statt nur console.error.
+          ['cEnergyCost', 'cCostPer100'].forEach(showCardError);
+        }
+      } catch (e) {
+        console.error('efficiency-data error:', e);
+        // 14.8: betroffene Karten (Temp + Kosten) mit Fehlertext markieren.
+        ['cConsTemp', 'cEnergyCost', 'cCostPer100'].forEach(showCardError);
+      }
+    }
+
+    // 14.8: Fehlertext in eine einzelne Chart-Card schreiben (Canvas weg, Text rein).
+    function showCardError(canvasId) {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+      const card = canvas.parentElement;
+      if (!card || card.querySelector('.no-data')) return;
+      card.classList.add('no-chart-data');
+      const h3 = card.querySelector('h3');
+      if (h3) h3.insertAdjacentHTML('afterend', '<div class="no-data">{{ t.analysis_load_error }}</div>');
+    }
+
+    // Auto-load if date range set
+    if (document.getElementById('dateFrom').value && document.getElementById('dateTo').value) {
+      loadAnalysis();
+    }
+  </script>
+
+  <script nonce="{{ csp_nonce }}">
+  // ── Scratch-Map ────────────────────────────────────────────────────────────
+  let scratchMap = null;
+  let scratchMapLoaded = false;
+
+  // ISO alpha-2 → ISO numeric (for world-atlas topojson IDs)
+  const ISO2_NUM = {
+    AF:4,AL:8,DZ:12,AO:24,AR:32,AM:51,AU:36,AT:40,AZ:31,BS:44,BH:48,BD:50,
+    BY:112,BE:56,BZ:84,BJ:204,BT:64,BO:68,BA:70,BW:72,BR:76,BN:96,BG:100,
+    BF:854,BI:108,KH:116,CM:120,CA:124,CF:140,TD:148,CL:152,CN:156,CO:170,
+    CG:178,CD:180,CR:188,HR:191,CU:192,CY:196,CZ:203,DK:208,DJ:262,DO:214,
+    EC:218,EG:818,SV:222,GQ:226,ER:232,EE:233,ET:231,FI:246,FR:250,GA:266,
+    GM:270,GE:268,DE:276,GH:288,GR:300,GT:320,GN:324,GW:624,GY:328,HT:332,
+    HN:340,HU:348,IS:352,IN:356,ID:360,IR:364,IQ:368,IE:372,IL:376,IT:380,
+    CI:384,JM:388,JP:392,JO:400,KZ:398,KE:404,KP:408,KR:410,KW:414,KG:417,
+    LA:418,LV:428,LB:422,LS:426,LR:430,LY:434,LT:440,LU:442,MG:450,MW:454,
+    MY:458,MV:462,ML:466,MT:470,MR:478,MU:480,MX:484,MD:498,MN:496,ME:499,
+    MA:504,MZ:508,MM:104,NA:516,NP:524,NL:528,NZ:554,NI:558,NE:562,NG:566,
+    MK:807,NO:578,OM:512,PK:586,PA:591,PG:598,PY:600,PE:604,PH:608,PL:616,
+    PT:620,QA:634,RO:642,RU:643,RW:646,SA:682,SN:686,RS:688,SL:694,SK:703,
+    SI:705,SO:706,ZA:710,SS:728,ES:724,LK:144,SD:729,SR:740,SZ:748,SE:752,
+    CH:756,SY:760,TW:158,TJ:762,TZ:834,TH:764,TG:768,TN:788,TR:792,TM:795,
+    UG:800,UA:804,AE:784,GB:826,US:840,UY:858,UZ:860,VE:862,VN:704,YE:887,
+    ZM:894,ZW:716,XK:383
+  };
+
+  async function loadScratchMap() {
+    if (scratchMapLoaded) return;
+    scratchMapLoaded = true;
+
+    // Load visited countries
+    const res = await fetch('/api/visited-countries');
+    const { countries } = await res.json();
+    const visitedSet = new Set(countries);
+
+    // Load Topojson World-Atlas
+    const topoRes = await fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json');
+    const world = await topoRes.json();
+    const features = topojson.feature(world, world.objects.countries).features;
+
+    // Antimeridian-Fix: Polygone wie Russland (Tschukotka/Wrangel) springen im
+    // Rohdaten-GeoJSON an der Datumsgrenze von +180 auf -180. Leaflet zeichnet
+    // diesen Sprung als horizontalen Strich quer ueber die ganze Karte. Wir
+    // "entwickeln" daher pro Ring die Laengengrade, sodass keine >180-Spruenge
+    // mehr auftreten (der weit-oestliche Teil landet bei z.B. 190 statt -170,
+    // also durchgehend statt umgebrochen).
+    function unwrapRing(ring) {
+      let prev = ring[0][0];
+      for (let i = 1; i < ring.length; i++) {
+        let lng = ring[i][0];
+        while (lng - prev > 180) lng -= 360;
+        while (lng - prev < -180) lng += 360;
+        ring[i][0] = lng;
+        prev = lng;
+      }
+    }
+    for (const f of features) {
+      const g = f.geometry;
+      if (!g) continue;
+      if (g.type === 'Polygon') g.coordinates.forEach(unwrapRing);
+      else if (g.type === 'MultiPolygon') g.coordinates.forEach(p => p.forEach(unwrapRing));
+    }
+
+    // Visited numeric IDs
+    const visitedNums = new Set(countries.map(c => ISO2_NUM[c]).filter(Boolean));
+
+    // Initialize Leaflet map (no tile layer = empty background)
+    scratchMap = L.map('scratchMap', {
+      center: [20, 10],
+      zoom: 2,
+      zoomControl: true,
+      attributionControl: false,
+      minZoom: 1,
+      maxZoom: 6,
+      worldCopyJump: false,
+      // Wheel-Zoom aus: scrollen ueber die Karte soll die Seite weiterscrollen,
+      // nicht in die Karte hineinzoomen. Zoom geht ueber die +/- Buttons oder
+      // (Touch) Pinch-Geste.
+      scrollWheelZoom: false
+    });
+
+    // Background color already set via CSS var(--bg)
+    // GeoJSON layer: draw all countries
+    const bounds = [];
+    L.geoJSON(features, {
+      style: function(feature) {
+        const num = parseInt(feature.id, 10);
+        const visited = visitedNums.has(num);
+        return {
+          fillColor: visited ? TC.successBtnHover : TC.borderSoft,
+          fillOpacity: visited ? 0.75 : 0.6,
+          color: TC.border,
+          weight: 0.5,
+          opacity: 1
+        };
+      },
+      onEachFeature: function(feature, layer) {
+        const num = parseInt(feature.id, 10);
+        if (visitedNums.has(num)) {
+          // Reverse lookup ISO-2 code
+          const cc = Object.keys(ISO2_NUM).find(k => ISO2_NUM[k] === num) || '';
+          layer.bindTooltip(cc, { permanent: false, className: 'scratch-tip' });
+          try {
+            const b = layer.getBounds();
+            if (b.isValid()) bounds.push(b);
+          } catch(e) {}
+        }
+      }
+    }).addTo(scratchMap);
+
+    // Zoom to visited countries
+    if (bounds.length > 0) {
+      let combined = bounds[0];
+      for (let i = 1; i < bounds.length; i++) combined = combined.extend(bounds[i]);
+      scratchMap._lastFitBounds = combined; // fuer Reflow-Reapply nach Tab-Switch
+      scratchMap.fitBounds(combined, { padding: [40, 40], maxZoom: 5 });
+    }
+
+    // Stats
+    document.getElementById('scratchStats').textContent =
+      countries.length > 0
+        ? `${countries.length} ${countries.length === 1 ? '{{ t.analysis_country_singular }}' : '{{ t.analysis_country_plural }}'} ${'{{ t.analysis_countries_visited }}'.replace('{0}', '').trim()}: ${countries.join(', ')}`
+        : '';
+
+    setTimeout(() => scratchMap.invalidateSize(), 100);
+  }
+
+  // ── Heatmap ───────────────────────────────────────────────
+  let heatMapInstance = null;
+  async function loadHeatMap() {
+    if (heatMapInstance) {
+      heatMapInstance.invalidateSize();
+      return;
+    }
+
+    let coords = [];
+    try {
+      const res = await fetch('/api/trip-coords');
+      coords = await res.json();
+    } catch (e) {
+      console.error('heatmap fetch failed', e);
+    }
+    if (!coords.length) {
+      console.warn('heatmap: no coords');
+      return;
+    }
+    console.log('heatmap: loaded', coords.length, 'points');
+
+    heatMapInstance = L.map('heatMap', {
+      zoomControl: true,
+      attributionControl: false,
+      minZoom: 3,
+      maxZoom: 16,
+      // Siehe Kommentar bei scratchMap - Page-Scroll soll nicht in der Karte
+      // versanden.
+      scrollWheelZoom: false
+    });
+
+    // Kachel-Variante passend zum UI-Theme: helle Basemap im hellen Theme,
+    // sonst dunkel (Standard/GT).
+    const tileVariant = (document.documentElement.dataset.theme || '') === 'light' ? 'light_all' : 'dark_all';
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/' + tileVariant + '/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19
+    }).addTo(heatMapInstance);
+
+    // Fit bounds FIRST so Leaflet has a valid view before adding layers
+    const bounds = L.latLngBounds(coords.map(c => [c[0], c[1]]));
+    heatMapInstance._lastFitBounds = bounds; // fuer Reflow-Reapply nach Tab-Switch
+    heatMapInstance.fitBounds(bounds, { padding: [30, 30] });
+
+    L.heatLayer(coords, {
+      radius: 16,
+      blur: 12,
+      maxZoom: 15,
+      minOpacity: 0.3,
+      gradient: {0.2: TC.accentDeep, 0.4: TC.successBtnHover, 0.6: TC.warn, 0.8: TC.dangerBtn, 1.0: '#f0f'}
+    }).addTo(heatMapInstance);
+
+    setTimeout(() => heatMapInstance.invalidateSize(), 100);
+  }
+
+  // Map hook: showTab already calls renderTab(), here only map init
+  const _origShowTab2 = window.showTab;
+  window.showTab = function(name) {
+    _origShowTab2(name);
+    if (name === 'karte') {
+      Promise.all([loadScratchMap(), loadHeatMap()]).then(() => {
+        // Mehrfaches invalidateSize an gestaffelten Delays - einmaliges RAF/100ms
+        // hatte bei langsamerem Tab-Switch nicht gereicht. Plus fitBounds-Reapply
+        // damit die view-Position zum echten Container passt (Leaflet rechnet
+        // fitBounds beim Erst-Aufruf evtl gegen 0x0 und behaelt das gespeichert).
+        const reflow = () => {
+          if (typeof scratchMap !== 'undefined' && scratchMap) {
+            scratchMap.invalidateSize(true);
+            if (scratchMap._lastFitBounds) try { scratchMap.fitBounds(scratchMap._lastFitBounds, {padding:[40,40], maxZoom:5, animate:false}); } catch(e){}
+          }
+          if (typeof heatMapInstance !== 'undefined' && heatMapInstance) {
+            heatMapInstance.invalidateSize(true);
+            if (heatMapInstance._lastFitBounds) try { heatMapInstance.fitBounds(heatMapInstance._lastFitBounds, {padding:[30,30], animate:false}); } catch(e){}
+          }
+        };
+        [50, 250, 600, 1500].forEach(d => setTimeout(reflow, d));
+      });
+    }
+  };
+  </script>
+</div>
+{% endblock %}

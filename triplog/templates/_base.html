@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="{{ current_lang|lower }}"{% if user_theme %} data-theme="{{ user_theme }}"{% endif %}>
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" type="image/svg+xml" href="/static/logo.svg">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <meta name="viewport" content="{% block viewport %}width=device-width, initial-scale=1.0, viewport-fit=cover{% endblock %}">
+  <meta name="color-scheme" content="{{ 'light' if user_theme == 'light' else 'dark' }}">
+  <meta name="theme-color" content="{{ {'light': '#ffffff', 'gt': '#000000'}.get(user_theme, '#0d1117') }}">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>{% block doc_title %}ID·Mate{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='idmate.css') }}">
+  <script nonce="{{ csp_nonce }}">window.IDMATE_LABELS={ok: {{ t.common_confirm|tojson }}, cancel: {{ t.common_cancel|tojson }}};</script>
+  <script nonce="{{ csp_nonce }}">
+  /* TC = aufgeloeste Theme-Tokens fuer JS-Kontexte, die kein var() koennen
+   * (Canvas/Chart.js, Leaflet-Pfade, SVG-Praesentationsattribute). Muss vor
+   * allen Body-Inline-Scripts laufen; der Stylesheet-<link> davor blockiert
+   * die Script-Ausfuehrung, also sind die Custom Properties hier berechnet. */
+  (function(){
+    var s = getComputedStyle(document.documentElement);
+    function g(n){ return s.getPropertyValue(n).trim(); }
+    window.TC = {bg:g('--bg'),bgCard:g('--bg-card'),bgHover:g('--bg-hover'),bgActive:g('--bg-active'),
+      borderSoft:g('--border-soft'),border:g('--border'),text1:g('--text-1'),text2:g('--text-2'),text3:g('--text-3'),
+      accent:g('--accent'),accentBright:g('--accent-bright'),accentStrong:g('--accent-strong'),accentDeep:g('--accent-deep'),
+      success:g('--success'),successBright:g('--success-bright'),successBtn:g('--success-btn'),successBtnHover:g('--success-btn-hover'),
+      warn:g('--warn'),warnBright:g('--warn-bright'),orange:g('--orange'),orangeDim:g('--orange-dim'),
+      danger:g('--danger'),dangerBtn:g('--danger-btn'),purple:g('--purple'),purpleBright:g('--purple-bright'),teal:g('--teal')};
+  })();
+  </script>
+  <script defer src="{{ url_for('static', filename='idmate.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='daterange.js') }}"></script>
+  {% block extra_head %}{% endblock %}
+  <style>
+    /* ── Shared resets and accessibility primitives ─────────── */
+    @media (prefers-reduced-motion: reduce){*{animation-duration:0.01ms !important;transition-duration:0.01ms !important;scroll-behavior:auto !important}}
+    @view-transition{navigation:auto}
+    @supports (padding: env(safe-area-inset-top)){body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}.hdr{padding-top:max(0.5rem,env(safe-area-inset-top))}.content{padding-bottom:max(0.8rem,env(safe-area-inset-bottom))}}
+    @media (pointer: coarse){.close-btn,.veh-picker{min-height:44px;min-width:44px;display:inline-flex;align-items:center;justify-content:center}.tab{min-height:40px}.modal button:not(.mini-btn),.form-actions button{min-height:44px}}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text-1)}
+
+    /* ── Header ─────────────────────────────────────────────── */
+    .hdr{display:flex;align-items:center;padding:0.5rem 1rem;border-bottom:1px solid var(--border-soft);height:45px;max-width:1200px;margin:0 auto;position:sticky;top:0;z-index:1100;background:var(--bg);gap:0.5rem}
+    .leaflet-top,.leaflet-bottom{z-index:500!important}
+    .hdr h1{font-size:1rem;font-weight:600;flex:1;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    @media(max-width:480px){.hdr{padding:0.5rem 0.7rem}.hdr h1{font-size:0.9rem}}
+
+    /* ── Vehicle Picker ─────────────────────────────────────── */
+    .veh-picker{position:relative;display:flex;align-items:center;gap:0.3rem;padding:0.2rem 0.5rem;border-radius:6px;cursor:pointer;color:var(--text-2);font-size:0.8rem;font-family:inherit;line-height:inherit;text-align:left;user-select:none;background:none;border:1px solid transparent;transition:border-color .15s,background .15s}
+    .veh-picker:hover{background:var(--bg-card);border-color:var(--border);color:var(--text-1)}
+    .veh-picker:focus-visible{outline:2px solid var(--accent);outline-offset:2px;color:var(--text-1)}
+    .veh-chevron{opacity:0.5;transition:transform .2s;flex-shrink:0}
+    .veh-picker.open .veh-chevron{transform:rotate(180deg)}
+    .veh-dropdown{display:none;position:absolute;top:calc(100% + 4px);right:0;min-width:150px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:500;overflow:hidden}
+    .veh-picker.open .veh-dropdown{display:block}
+    .veh-opt{width:100%;padding:0.5rem 0.8rem;font-size:0.8rem;font-family:inherit;text-align:left;color:var(--text-2);cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:0.5rem;background:none;border:none}
+    .veh-opt:hover,.veh-opt:focus-visible{background:var(--bg-hover);color:var(--text-1);outline:none}
+    .veh-opt.active{color:var(--accent)}
+    .veh-opt::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:transparent;flex-shrink:0}
+    .veh-opt.active::before{background:var(--accent)}
+  </style>
+  {% block extra_style %}{% endblock %}
+</head>
+<body{% block body_attrs %}{% endblock %}>
+
+  <div class="hdr">
+    {% block hdr_h1 %}<h1><a href="/" style="color:var(--accent);text-shadow:0 0 8px color-mix(in srgb,var(--accent) 40%,transparent);text-decoration:none">ID·Mate</a> — {% block page_title %}{% endblock %}</h1>{% endblock %}
+    {% block hdr_vehicle %}
+    {% if active_vehicle %}
+    <button type="button" class="veh-picker" id="vehPicker" data-onclick="toggleVehPicker" aria-haspopup="true" aria-expanded="false" aria-controls="vehDropdown">
+      <span id="vehPickerLabel">{{ vehicle_name }}</span>
+      <svg class="veh-chevron" viewBox="0 0 10 6" width="10" height="6" fill="none" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div class="veh-dropdown" id="vehDropdown" role="menu"></div>
+    </button>
+    {% endif %}
+    {% endblock %}
+    {% include "_profile_picker.html" %}
+  </div>
+
+  {% block content %}{% endblock %}
+
+  {% include "_tab_bar.html" %}
+
+  <script nonce="{{ csp_nonce }}">
+  (function(){
+    const ACTIVE_ID = {{ (active_vehicle.id if active_vehicle else 'null') | tojson }};
+    async function initVehPicker() {
+      const picker = document.getElementById('vehPicker');
+      if (!picker) return;
+      const res = await fetch('/api/vehicles');
+      const vehicles = await res.json();
+      if (vehicles.length <= 1) { picker.style.cursor = 'default'; return; }
+      document.getElementById('vehDropdown').innerHTML = vehicles.map(v =>
+        `<button type="button" role="menuitem" class="veh-opt ${v.id === ACTIVE_ID ? 'active' : ''}" data-onclick="switchVehicle" data-args='[${v.id}]'>${v.name || v.plate}</button>`
+      ).join('');
+    }
+    function setVehOpen(open){
+      const p = document.getElementById('vehPicker');
+      if (!p) return;
+      p.classList.toggle('open', open);
+      p.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    function closeVehPicker(restoreFocus){
+      const p = document.getElementById('vehPicker');
+      if (!p) return;
+      setVehOpen(false);
+      if (restoreFocus) p.focus();
+    }
+    window.toggleVehPicker = function(e){
+      e.stopPropagation();
+      const p = document.getElementById('vehPicker');
+      const willOpen = !p.classList.contains('open');
+      setVehOpen(willOpen);
+      if (willOpen){
+        const first = p.querySelector('.veh-opt');
+        if (first) first.focus();
+      }
+    };
+    window.switchVehicle = async function(id, e){
+      e.stopPropagation();
+      await fetch('/api/user/active-vehicle', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({vehicle_id:id})});
+      location.reload();
+    };
+    document.addEventListener('click', () => closeVehPicker(false));
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      const p = document.getElementById('vehPicker');
+      if (p && p.classList.contains('open')) closeVehPicker(true);
+    });
+    initVehPicker();
+  })();
+  </script>
+
+  <script nonce="{{ csp_nonce }}">
+  // Service worker: registered with its default scope (/static) since sw.js
+  // is served from the static folder. Minimal/offline-fallback only — see sw.js.
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('{{ url_for("static", filename="sw.js") }}')
+        .catch(function (err) { console.warn('SW registration failed:', err); });
+    });
+  }
+  </script>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

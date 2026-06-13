@@ -1,0 +1,194 @@
+# ============================================================
+#  ID·Mate — Home Assistant Automation: Ladetracker
+# ============================================================
+#
+#  Sendet alle 15 Minuten Ladedaten (Zaehlerstand, Tibber-Preis)
+#  an den ID·Mate-Webhook. ID·Mate erkennt daraus automatisch
+#  Ladesessions, berechnet Kosten und vergleicht Tibber vs.
+#  Pauschale.
+#
+#  VORAUSSETZUNGEN:
+#    - Stromzaehler-Entity (z.B. Shelly, Homematic, Tasmota)
+#    - Optional: Tibber-Integration fuer aktuellen Strompreis
+#    - Optional: Fahrzeugerkennung (welches Auto gerade laedt)
+#
+#  INSTALLATION:
+#    1. Diese Datei nach /config/automations/ kopieren (oder
+#       den Inhalt in automations.yaml einfuegen)
+#    2. Secrets in /config/secrets.yaml eintragen:
+#         idmate_url:           "http://192.168.x.x:3004"
+#         idmate_charge_token:  "dein-webhook-token"
+#    3. Entity-IDs unten an dein Setup anpassen
+#    4. HA → Entwicklerwerkzeuge → YAML neu laden
+#
+#  WEBHOOK-FORMAT (JSON):
+#    {
+#      "vehicle":              "AB-CD 1234",
+#      "kwh":                  1.23,
+#      "meter_start":          12345.67,
+#      "meter_end":            12346.90,
+#      "timestamp":            "2026-03-22T14:30:00",
+#      "odometer":             45678,
+#      "tibber_price":         0.28,
+#      "tibber_grundgebuehr":  0.0456
+#    }
+#
+#  HINWEIS:
+#    - "vehicle" muss dem Kennzeichen in ID·Mate entsprechen
+#    - kwh <= 0 wird serverseitig ignoriert (kein Verbrauch)
+#    - "vehicle" = "free" oder "error" wird uebersprungen
+# ============================================================
+
+automation:
+  # ────────────────────────────────────────────────────────────
+  #  1. Messwert alle 15 Minuten senden
+  # ────────────────────────────────────────────────────────────
+  - id: idmate_charge_reading
+    alias: "ID·Mate — Lade-Messwert senden"
+    description: >-
+      Sendet alle 15 Min Zaehlerstand + Tibber-Preis an ID·Mate.
+      Sessions werden serverseitig automatisch erkannt.
+
+    trigger:
+      - platform: time_pattern
+        minutes: "/15"
+
+    # Nur senden wenn Zaehler verfuegbar
+    condition:
+      - condition: not
+        conditions:
+          - condition: state
+            entity_id: &meter_entity sensor.wallbox_energy_total
+            state: "unavailable"
+
+    variables:
+      # ── Entity-IDs anpassen! ────────────────────────────────
+
+      # Zaehlerstand (kWh, fortlaufend) — PFLICHT
+      meter_kwh: >-
+        {{ states('sensor.wallbox_energy_total') | float(0) }}
+
+      # Letzter gesendeter Zaehlerstand (via input_number)
+      last_meter: >-
+        {{ states('input_number.idmate_last_meter') | float(0) }}
+
+      # Differenz seit letztem Senden
+      kwh_diff: >-
+        {{ (meter_kwh | float - last_meter | float) | round(3) }}
+
+      # Kennzeichen des ladenden Fahrzeugs
+      # Option A: Fester Wert
+      # vehicle: "AB-CD 1234"
+      # Option B: Aus RFID/NFC-Tag oder Input-Select
+      vehicle: >-
+        {{ states('input_select.wallbox_vehicle') | default('AB-CD 1234', true) }}
+
+      # Kilometerstand (optional, aus Fahrzeug-Integration)
+      odometer: >-
+        {{ states('sensor.fahrzeug_odometer') | default('', true) }}
+
+      # Tibber aktueller Preis (EUR/kWh, optional)
+      tibber_price: >-
+        {{ states('sensor.electricity_price_tibber') | float(0) }}
+
+      # Tibber Grundgebuehr anteilig pro kWh (optional)
+      # Monatsgebuehr / geschaetzter Monatsverbrauch
+      tibber_grund: >-
+        {{ (4.49 / 300) | round(4) }}
+
+    action:
+      # Nur senden wenn tatsaechlich Strom geflossen ist
+      - condition: template
+        value_template: "{{ kwh_diff | float > 0 }}"
+
+      - service: rest_command.idmate_charge_reading
+        data:
+          payload: >-
+            {{
+              {
+                "vehicle":              vehicle,
+                "kwh":                  kwh_diff | float | round(3),
+                "meter_start":          last_meter | float | round(2),
+                "meter_end":            meter_kwh | float | round(2),
+                "timestamp":            now().strftime('%Y-%m-%dT%H:%M:%S'),
+                "odometer":             odometer if odometer not in ['', 'unknown', 'unavailable'] else '',
+                "tibber_price":         tibber_price | float | round(4),
+                "tibber_grundgebuehr":  tibber_grund | float | round(4)
+              } | to_json
+            }}
+
+      # Zaehlerstand merken
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.idmate_last_meter
+        data:
+          value: "{{ meter_kwh }}"
+
+  # ────────────────────────────────────────────────────────────
+  #  2. Zaehlerstand beim HA-Start synchronisieren
+  # ────────────────────────────────────────────────────────────
+  - id: idmate_charge_sync_meter
+    alias: "ID·Mate — Zaehlerstand synchronisieren"
+    description: >-
+      Setzt den gespeicherten Zaehlerstand beim HA-Neustart
+      auf den aktuellen Wert, damit kein Phantom-Verbrauch
+      gesendet wird.
+
+    trigger:
+      - platform: homeassistant
+        event: start
+
+    action:
+      - delay: "00:00:30"  # Warten bis Entities geladen
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.idmate_last_meter
+        data:
+          value: "{{ states('sensor.wallbox_energy_total') | float(0) }}"
+
+
+# ============================================================
+#  Benoetigte Helfer (in configuration.yaml eintragen)
+# ============================================================
+#
+#  input_number:
+#    idmate_last_meter:
+#      name: "ID·Mate letzter Zaehlerstand"
+#      min: 0
+#      max: 999999
+#      step: 0.001
+#      mode: box
+#      unit_of_measurement: "kWh"
+#
+#  # Optional: Fahrzeugauswahl an der Wallbox
+#  input_select:
+#    wallbox_vehicle:
+#      name: "Fahrzeug an Wallbox"
+#      options:
+#        - "AB-CD 1234"
+#        - "EF-GH 5678"
+#        - "free"
+#      initial: "free"
+#      icon: mdi:car-electric
+#
+# ============================================================
+#
+#  REST-Command (in configuration.yaml eintragen)
+# ============================================================
+#
+#  rest_command:
+#    idmate_charge_reading:
+#      url: "!secret idmate_url/api/charge/reading"
+#      method: POST
+#      headers:
+#        Authorization: "Bearer !secret idmate_charge_token"
+#        Content-Type: "application/json"
+#      payload: "{{ payload }}"
+#      content_type: "application/json"
+#
+# ── secrets.yaml ─────────────────────────────────────────────
+#
+#   idmate_url:          "http://192.168.x.x:3004"
+#   idmate_charge_token: "dein-webhook-token"
+#
+# ============================================================
