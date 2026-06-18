@@ -1,0 +1,10 @@
+# Test-only dependencies.
+#
+# The detector unit tests stub influxdb_client (see tests/conftest.py), so
+# pytest alone runs them:
+#   pip install -r requirements-dev.txt && pytest
+#
+# The app-level tests (test_app_*.py) import app.py and need the runtime deps
+# too; without them those tests skip. To run the FULL suite:
+#   pip install -r requirements.txt -r requirements-dev.txt && pytest
+pytest>=8.0

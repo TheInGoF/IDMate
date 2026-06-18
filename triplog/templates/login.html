@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="{{ current_lang|lower }}">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" type="image/svg+xml" href="/static/logo.svg">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0d1117">
+  <title>IDmate — {{ t.login_title }}</title>
+  <style>
+    @media (prefers-reduced-motion: reduce){*{animation-duration:0.01ms !important;transition-duration:0.01ms !important;scroll-behavior:auto !important}}
+    @view-transition{navigation:auto}
+    @supports (padding: env(safe-area-inset-top)){body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}.hdr{padding-top:max(0.5rem,env(safe-area-inset-top))}.menu{padding-top:max(1rem,env(safe-area-inset-top))}.content{padding-bottom:max(0.8rem,env(safe-area-inset-bottom))}}
+    @media (pointer: coarse){.burger,.close-btn,.veh-picker{min-height:44px;min-width:44px;display:inline-flex;align-items:center;justify-content:center}.menu a{padding-top:0.9rem;padding-bottom:0.9rem}.tab{min-height:40px}.modal button:not(.mini-btn),.form-actions button{min-height:44px}}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d1117;color:#e6edf3;display:flex;flex-direction:column;justify-content:center;align-items:center;min-height:100vh}
+    .card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:2rem;width:320px}
+    h1{font-size:1.4rem;color:#58a6ff;text-align:center;margin-bottom:1.5rem}
+    label{display:block;font-size:0.8rem;color:#8b949e;margin-bottom:0.3rem;margin-top:0.8rem}
+    input{width:100%;padding:0.5rem 0.7rem;border-radius:6px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:0.9rem}
+    input:focus{border-color:#58a6ff;outline:none}
+    button{width:100%;padding:0.6rem;border-radius:6px;border:none;background:#238636;color:#fff;font-size:0.9rem;font-weight:600;cursor:pointer;margin-top:1.2rem}
+    button:hover{background:#2ea043}
+    .error{background:#da36331a;border:1px solid #da3633;color:#f85149;border-radius:6px;padding:0.5rem;font-size:0.8rem;text-align:center;margin-bottom:0.5rem}
+  </style>
+</head>
+<body>
+  <form id="login-form" class="card" method="POST" action="/login" autocomplete="on">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <h1><span style="color:#58a6ff;text-shadow:0 0 8px rgba(88,166,255,0.4)">IDmate</span></h1>
+    {% if error %}
+    <div class="error">{{ error }}</div>
+    {% endif %}
+    <label for="username">{{ t.login_username }}</label>
+    <input type="text" id="username" name="username" required autofocus autocomplete="username" spellcheck="false" autocapitalize="none">
+    <label for="password">{{ t.login_password }}</label>
+    <input type="password" id="password" name="password" required autocomplete="current-password">
+    <button type="submit">{{ t.login_submit }}</button>
+  </form>
+<footer style="text-align:center;padding:1.5rem 0 0.8rem;font-size:0.7rem;color:#8b949e"><a href="https://github.com/TheInGoF/IDMate-dev" target="_blank" style="color:#8b949e;text-decoration:none">&copy; 2026 IDmate &middot; AGPL v3 &middot; v{{ version }}</a></footer>
+</body>
+</html>

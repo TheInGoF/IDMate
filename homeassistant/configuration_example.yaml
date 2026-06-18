@@ -1,0 +1,132 @@
+# ============================================================
+#  IDmate — Home Assistant configuration.yaml additions
+# ============================================================
+#
+#  These blocks must be added to /config/configuration.yaml
+#  so that the IDmate automations work.
+#
+#  Secrets (in /config/secrets.yaml):
+#    influx_url:          "http://192.168.x.x:3001"
+#    influx_token:        "dein-influxdb-api-token"
+#    influx_org:          "home"
+#    influx_bucket:       "can-scan"
+#    idmate_url:          "http://192.168.x.x:3004"
+#    idmate_charge_token: "dein-webhook-token"
+# ============================================================
+
+
+# ── REST Commands ────────────────────────────────────────────
+
+rest_command:
+
+  # Vehicle telemetry → InfluxDB (Line Protocol)
+  # Used by: idmate_vehicle_telemetry.yaml
+  idmate_influx_write:
+    url: !secret influx_url
+    # The full URL is built with query parameters:
+    # http://192.168.x.x:3001/api/v2/write?org=home&bucket=can-scan&precision=s
+    # Since HA secrets do not support interpolation, build the URL
+    # directly or use an input_text:
+    # url: "http://192.168.x.x:3001/api/v2/write?org=home&bucket=can-scan&precision=s"
+    method: POST
+    headers:
+      Authorization: !secret influx_auth_header
+      # In secrets.yaml: influx_auth_header: "Token your-api-token"
+      Content-Type: "text/plain; charset=utf-8"
+    payload: "{{ payload }}"
+    content_type: "text/plain; charset=utf-8"
+
+  # Charge readings → IDmate webhook (JSON)
+  # Used by: idmate_charge_tracker.yaml
+  idmate_charge_reading:
+    url: !secret idmate_charge_url
+    # In secrets.yaml: idmate_charge_url: "http://192.168.x.x:3004/api/charge/reading"
+    method: POST
+    headers:
+      Authorization: !secret idmate_charge_auth
+      # In secrets.yaml: idmate_charge_auth: "Bearer your-webhook-token"
+      Content-Type: "application/json"
+    payload: "{{ payload }}"
+    content_type: "application/json"
+
+
+# ── Input Helpers ────────────────────────────────────────────
+
+input_number:
+  # Last meter reading for difference calculation
+  idmate_last_meter:
+    name: "IDmate last meter reading"
+    min: 0
+    max: 999999
+    step: 0.001
+    mode: box
+    unit_of_measurement: "kWh"
+    icon: mdi:counter
+
+input_select:
+  # Vehicle selection at the wallbox (optional)
+  wallbox_vehicle:
+    name: "Vehicle at wallbox"
+    options:
+      - "AB-CD 1234"
+      - "EF-GH 5678"
+      - "free"
+    initial: "free"
+    icon: mdi:car-electric
+
+
+# ── Secrets-Vorlage ─────────────────────────────────────────
+#
+# Add to /config/secrets.yaml:
+#
+#   # InfluxDB (for vehicle telemetry)
+#   influx_url:          "http://192.168.x.x:3001/api/v2/write?org=home&bucket=can-scan&precision=s"
+#   influx_auth_header:  "Token your-influxdb-api-token"
+#
+#   # IDmate Triplog (for charge tracker)
+#   idmate_charge_url:   "http://192.168.x.x:3004/api/charge/reading"
+#   idmate_charge_auth:  "Bearer your-webhook-token"
+#
+# ============================================================
+#
+#  SQLite database:
+#
+#  IDmate stores charge sessions automatically in SQLite.
+#  The relevant tables:
+#
+#    charge_readings   — Individual readings (15-min intervals)
+#      | timestamp       | TEXT   | Timestamp                |
+#      | vehicle_plate   | TEXT   | License plate            |
+#      | meter_start     | REAL   | Meter start (kWh)        |
+#      | meter_end       | REAL   | Meter end (kWh)          |
+#      | kwh             | REAL   | Difference (kWh)         |
+#      | tibber_price    | REAL   | Electricity price (EUR/kWh) |
+#      | tibber_grundgeb.| REAL   | Base fee (EUR/kWh)       |
+#      | odometer        | REAL   | Odometer reading         |
+#      | session_id      | INT    | Assigned session         |
+#
+#    charge_sessions   — Aggregated charge sessions (automatic)
+#      | vehicle_plate   | TEXT   | License plate            |
+#      | start_time      | TEXT   | Start of charge session  |
+#      | end_time        | TEXT   | End of charge session    |
+#      | total_kwh       | REAL   | Total kWh                |
+#      | duration_minutes| INT    | Duration in minutes      |
+#      | avg_kw          | REAL   | Average kW               |
+#      | odometer        | REAL   | Odometer reading         |
+#      | cost_tibber     | REAL   | Cost by Tibber           |
+#      | cost_pauschale  | REAL   | Cost by flat rate        |
+#      | cost_diff       | REAL   | Difference Tibber-flat   |
+#
+#    vehicles          — Registered vehicles
+#      | plate           | TEXT   | License plate (unique)   |
+#      | name            | TEXT   | Display name             |
+#      | vin             | TEXT   | Vehicle ID number        |
+#
+#    charge_tariffs    — Electricity flat-rate prices
+#      | valid_from      | TEXT   | Valid from (date)        |
+#      | pauschale_kwh   | REAL   | EUR/kWh                  |
+#
+#  Sessions are aggregated automatically server-side from the
+#  readings (gap > 60 min = new session).
+#
+# ============================================================

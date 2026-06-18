@@ -1,0 +1,277 @@
+# ============================================================
+#  IDmate — Home Assistant Automation: Charge Tracker
+# ============================================================
+#
+#  Sends interval-wise ABSOLUTE meter readings (meter_start/
+#  meter_end) to IDmate. IDmate computes the kWh delta itself
+#  and detects charging sessions server-side. Advantage:
+#  event-driven, gap-less intervals (old car until 10:07, new
+#  car from 10:08) — no energy lost at the boundaries.
+#
+#  REQUIREMENTS:
+#    - Electricity meter entity (cumulative kWh, e.g. Shelly,
+#      Homematic, Tasmota, SDM630)
+#    - Optional: dynamic price sensor (Tibber / EPEX)
+#    - Optional: vehicle selection (which car is charging)
+#    - Optional: odometer sensor from a vehicle integration
+#
+#  INSTALLATION:
+#    1. Copy this file to /config/automations/ (or paste the
+#       content into automations.yaml)
+#    2. Add the helpers + rest_command from the bottom of this
+#       file to configuration.yaml
+#    3. Add secrets to /config/secrets.yaml:
+#         idmate_charge_url:  "http://192.168.x.x:3004/api/charge/reading"
+#         idmate_charge_auth: "Bearer your-webhook-token"
+#    4. Adjust the entity IDs below to match your setup
+#    5. HA -> Developer Tools -> reload YAML
+#
+#  WEBHOOK FORMAT (JSON) — NOTE: NO "kwh" field. The server
+#  computes meter_end - meter_start itself:
+#    {
+#      "timestamp":            "2026-03-22T14:30:00",
+#      "vehicle":              "AB-CD 1234",
+#      "meter_start":          12345.670,
+#      "meter_end":            12346.900,
+#      "tibber_price":         0.28,
+#      "tibber_grundgebuehr":  0.0150,
+#      "odometer":             "45678"
+#    }
+#
+#  NOTES:
+#    - "vehicle" must match the license plate stored in IDmate.
+#      No real plate -> "unknown" is sent: IDmate keeps the
+#      energy and lets you assign it later instead of dropping it.
+#    - "vehicle" = "free" or empty is skipped server-side.
+#    - meter_end <= meter_start is ignored (no consumption).
+# ============================================================
+
+# ── Send script (used by the tick + on unplug + on car change) ──
+script:
+  idmate_send_interval:
+    alias: "IDmate — send charge interval"
+    # queued: a manual vehicle change and the 15-min tick must not overtake
+    # each other.
+    mode: queued
+    sequence:
+      - variables:
+          m_start: "{{ states('input_number.idmate_last_meter') | float(0) }}"
+          m_end: "{{ states('sensor.wallbox_energy_total') | float(0) }}"
+          # plate_override = on a vehicle change, the OLD plate; otherwise the
+          # currently selected one. No real plate -> send 'unknown' so IDmate
+          # stores the energy for later assignment instead of dropping it.
+          plate: >-
+            {% set p = plate_override if (plate_override is defined and plate_override not in [none, ''])
+                       else states('input_select.wallbox_vehicle') %}
+            {{ p if p not in ['', 'free', 'unknown', none] else 'unknown' }}
+
+      # Meter must be available + numeric, otherwise abort cleanly (prevents a
+      # float(0) phantom and an anchor reset to 0).
+      - condition: template
+        value_template: "{{ has_value('sensor.wallbox_energy_total') and is_number(states('sensor.wallbox_energy_total')) }}"
+
+      # Meter reset/swap (reading < anchor): re-anchor once + notify, instead of
+      # blocking forever (m_end > m_start would never be true again).
+      - if: "{{ m_end < m_start }}"
+        then:
+          - service: input_number.set_value
+            target:
+              entity_id: input_number.idmate_last_meter
+            data:
+              value: "{{ m_end }}"
+          - service: notify.mobile_app_your_phone
+            data:
+              title: "IDmate"
+              message: "Meter reset detected ({{ m_start }} -> {{ m_end }} kWh) - anchor re-set."
+          - stop: "Meter reset - re-anchored"
+
+      # Only send if energy actually flowed.
+      - condition: template
+        value_template: "{{ m_end > m_start }}"
+
+      - service: rest_command.idmate_charge_reading
+        response_variable: resp
+        data:
+          payload: >-
+            {{
+              {
+                "timestamp":            utcnow().strftime('%Y-%m-%dT%H:%M:%S'),
+                "vehicle":              plate,
+                "meter_start":          m_start | float | round(3),
+                "meter_end":            m_end | float | round(3),
+                "tibber_price":         states('sensor.electricity_price') | float(0) | round(4),
+                "tibber_grundgebuehr":  (4.49 / 300) | round(4),
+                "odometer":             (states('sensor.vehicle_odometer') if has_value('sensor.vehicle_odometer') else '')
+              } | to_json
+            }}
+
+      # Advance the anchor ONLY if IDmate confirms the reading was STORED
+      # (HTTP 200 and not skipped). On down/401/503/implausible the anchor stays
+      # put -> the next tick re-sends the accumulated delta, no kWh is lost.
+      # (Invariant: never advance the anchor past un-stored energy.)
+      - condition: template
+        value_template: >-
+          {{ resp is defined and (resp.status | int(0)) == 200
+             and not (resp.content.skipped | default(false)) }}
+
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.idmate_last_meter
+        data:
+          value: "{{ m_end }}"
+
+# ── Automations ─────────────────────────────────────────────
+automation:
+  # 1) Periodic tick every 15 min -> send interval
+  - id: idmate_charge_tick
+    alias: "IDmate — charge tracker: send interval"
+    mode: single
+    trigger:
+      - platform: time_pattern
+        minutes: "/15"
+    action:
+      - service: script.idmate_send_interval
+
+  # 2) Vehicle changed in the UI -> finish the running interval for the OLD car
+  #    before the new one takes over. Fires on every change of the selection
+  #    (manual or via an RFID/notification automation).
+  - id: idmate_charge_vehicle_changed
+    alias: "IDmate — charge: vehicle changed -> finish interval"
+    mode: queued
+    trigger:
+      - platform: state
+        entity_id: input_select.wallbox_vehicle
+    condition:
+      # Only if the OLD value was a real vehicle (not empty/free at start, not
+      # unknown/unavailable after a restart).
+      - condition: template
+        value_template: >-
+          {{ trigger.from_state is not none
+             and trigger.from_state.state not in ['', 'free', 'unknown', 'unavailable'] }}
+    action:
+      - service: script.idmate_send_interval
+        data:
+          plate_override: "{{ trigger.from_state.state }}"
+
+  # 3) Unplug -> send the last piece, THEN reset the selection to 'free'
+  #    (order matters: the final partial interval must still carry the correct
+  #     plate before the selection jumps to 'free').
+  #    Adjust the trigger to your wallbox integration (here: a status sensor).
+  - id: idmate_charge_unplug
+    alias: "IDmate — charge: end -> final send + free"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: sensor.wallbox_status
+        to: "disconnected"
+    action:
+      - service: script.idmate_send_interval
+      - service: input_select.select_option
+        target:
+          entity_id: input_select.wallbox_vehicle
+        data:
+          option: "free"
+
+  # 4) HA restart -> correct the anchor ONLY on a real meter reset.
+  #    The meter survives restarts and the input_number anchor is kept, so after
+  #    a restart it is ALWAYS correct. Do NOT overwrite it unconditionally: that
+  #    would DISCARD a charge running during the restart (real lost kWh). The
+  #    open interval goes out regularly on the next 15-min tick. Only when the
+  #    meter is SMALLER than the anchor (meter swap/reset) do we re-anchor.
+  - id: idmate_charge_sync_meter
+    alias: "IDmate — charge: sync meter on start"
+    mode: single
+    trigger:
+      - platform: homeassistant
+        event: start
+    action:
+      - delay: "00:00:30"  # wait until entities are loaded
+      - if:
+          - condition: template
+            value_template: >-
+              {{ has_value('sensor.wallbox_energy_total')
+                 and is_number(states('sensor.wallbox_energy_total'))
+                 and states('sensor.wallbox_energy_total') | float(0)
+                     < states('input_number.idmate_last_meter') | float(0) }}
+        then:
+          - service: input_number.set_value
+            target:
+              entity_id: input_number.idmate_last_meter
+            data:
+              value: "{{ states('sensor.wallbox_energy_total') | float(0) }}"
+          - service: notify.mobile_app_your_phone
+            data:
+              title: "IDmate"
+              message: "Meter reset detected on start - anchor re-set ({{ states('sensor.wallbox_energy_total') }} kWh)."
+
+  # 5) OPTIONAL: ask which vehicle is charging when a charge starts.
+  #    Uncomment and adapt the trigger to your wallbox (e.g. an
+  #    "awaiting_authorization"/"charging" status). The notification action
+  #    handlers must set input_select.wallbox_vehicle (see commented example).
+  # - id: idmate_charge_ask_vehicle
+  #   alias: "IDmate — charge: start -> which vehicle?"
+  #   mode: single
+  #   trigger:
+  #     - platform: state
+  #       entity_id: sensor.wallbox_status
+  #       to: "awaiting_start"
+  #   action:
+  #     - service: notify.mobile_app_your_phone
+  #       data:
+  #         title: "Authorize charge"
+  #         message: "Which vehicle is charging?"
+  #         data:
+  #           actions:
+  #             - action: "IDMATE_VEHICLE_A"
+  #               title: "AB-CD 1234"
+  #             - action: "IDMATE_VEHICLE_B"
+  #               title: "EF-GH 5678"
+
+
+# ============================================================
+#  Required helpers (add to configuration.yaml)
+# ============================================================
+#
+#  input_number:
+#    idmate_last_meter:
+#      name: "IDmate last meter reading"
+#      min: 0
+#      max: 9999999
+#      step: 0.001
+#      mode: box
+#      unit_of_measurement: "kWh"
+#      icon: mdi:counter
+#
+#  # Vehicle selection at the wallbox (option values = the license plates as
+#  # stored in IDmate; "free" = nobody / skip).
+#  input_select:
+#    wallbox_vehicle:
+#      name: "Vehicle at wallbox"
+#      options:
+#        - "free"
+#        - "AB-CD 1234"
+#        - "EF-GH 5678"
+#      initial: "free"
+#      icon: mdi:car-electric
+#
+# ============================================================
+#  REST command (add to configuration.yaml)
+# ============================================================
+#
+#  rest_command:
+#    idmate_charge_reading:
+#      url: !secret idmate_charge_url
+#      method: POST
+#      headers:
+#        Authorization: !secret idmate_charge_auth
+#        Content-Type: "application/json"
+#      content_type: "application/json"
+#      # No "kwh" field: the server computes meter_end - meter_start itself.
+#      payload: "{{ payload }}"
+#
+# ── secrets.yaml ─────────────────────────────────────────────
+#
+#   idmate_charge_url:  "http://192.168.x.x:3004/api/charge/reading"
+#   idmate_charge_auth: "Bearer your-webhook-token"
+#
+# ============================================================

@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0E1B2C"/>
+      <stop offset="100%" stop-color="#14253A"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#1DE9B6"/>
+      <stop offset="100%" stop-color="#3DB7E4"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#243349" stroke-width="0.5"/>
+    </pattern>
+  </defs>
+
+  <rect width="1280" height="640" fill="url(#bg)"/>
+  <rect width="1280" height="640" fill="url(#grid)" opacity="0.6"/>
+
+  <!-- Accent corners -->
+  <rect x="0" y="0" width="1280" height="6" fill="url(#accent)"/>
+  <rect x="0" y="634" width="1280" height="6" fill="url(#accent)"/>
+
+  <!-- Logo (top-right) -->
+  <g transform="translate(1080, 60) scale(1.2)">
+    <rect width="128" height="128" rx="28" fill="#0E1B2C" stroke="#1DE9B6" stroke-width="1.5"/>
+    <circle cx="38" cy="34" r="6" fill="#1DE9B6"/>
+    <rect x="32" y="46" width="12" height="56" rx="3" fill="#E8EEF7"/>
+    <rect x="56" y="34" width="44" height="68" rx="10" fill="none" stroke="#E8EEF7" stroke-width="6"/>
+    <rect x="72" y="26" width="12" height="10" rx="2" fill="#E8EEF7"/>
+    <rect x="64" y="58" width="28" height="36" rx="4" fill="#1DE9B6"/>
+    <path d="M80 62 l-10 16 h8 l-4 12 14 -18 h-8 z" fill="#0E1B2C"/>
+  </g>
+
+  <!-- Title block -->
+  <g transform="translate(80, 180)">
+    <text x="0" y="0" font-family="Helvetica, Arial, sans-serif" font-size="120" font-weight="700" fill="#E8EEF7">
+      ID<tspan fill="#1DE9B6">·Mate</tspan>
+    </text>
+
+    <text x="0" y="80" font-family="Helvetica, Arial, sans-serif" font-size="38" font-weight="400" fill="#9aa0a6">
+      Self-hosted EV telemetry &amp; trip log
+    </text>
+
+    <text x="0" y="180" font-family="Helvetica, Arial, sans-serif" font-size="26" font-weight="400" fill="#cfd1d6">
+      Trips.  Charges.  Battery health.  —  for non-Tesla EVs.
+    </text>
+
+    <!-- Feature pills -->
+    <g transform="translate(0, 240)" font-family="Menlo, monospace" font-size="20" fill="#1DE9B6">
+      <g>
+        <rect x="0" y="-22" width="180" height="34" rx="17" fill="none" stroke="#1DE9B6" stroke-width="1.5"/>
+        <text x="90" y="2" text-anchor="middle">MQTT + AES-256</text>
+      </g>
+      <g transform="translate(200, 0)">
+        <rect x="0" y="-22" width="120" height="34" rx="17" fill="none" stroke="#1DE9B6" stroke-width="1.5"/>
+        <text x="60" y="2" text-anchor="middle">Trip log</text>
+      </g>
+      <g transform="translate(340, 0)">
+        <rect x="0" y="-22" width="170" height="34" rx="17" fill="none" stroke="#1DE9B6" stroke-width="1.5"/>
+        <text x="85" y="2" text-anchor="middle">Charge tracker</text>
+      </g>
+      <g transform="translate(530, 0)">
+        <rect x="0" y="-22" width="150" height="34" rx="17" fill="none" stroke="#1DE9B6" stroke-width="1.5"/>
+        <text x="75" y="2" text-anchor="middle">Geofencing</text>
+      </g>
+      <g transform="translate(700, 0)">
+        <rect x="0" y="-22" width="130" height="34" rx="17" fill="none" stroke="#1DE9B6" stroke-width="1.5"/>
+        <text x="65" y="2" text-anchor="middle">InfluxDB</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- Footer -->
+  <text x="80" y="600" font-family="Menlo, monospace" font-size="16" fill="#5a5d68">
+    github.com/TheInGoF/IDMate  ·  AGPLv3
+  </text>
+</svg>
